@@ -35,10 +35,11 @@ Think of it as a **shadow gateway** for your cluster.
 - Local-only (no cluster changes)
 - Works across multiple namespaces
 - Supports HTTP and gRPC (h2c / plaintext)
+- **Supports TCP connections via GCP SSH Bastion (for databases)**
 - Automatic local port assignment (no collisions)
-- Single fixed entry port
+- Single fixed entry port for HTTP/gRPC, dedicated ports for TCP
 - Host-based routing (`<service>.localhost`)
-- Auto-reconnecting `port-forward`
+- Auto-reconnecting `port-forward` and SSH tunnels
 - kubectl-native UX (krew plugin friendly)
 
 ---
@@ -81,6 +82,7 @@ kubectl localmesh --help
 - Access to a **Kubernetes 1.30+** cluster (WebSocket port-forward support required)
 - `envoy` installed locally
 - Go 1.21+ (if building from source)
+- **GCP SSH Bastion (optional)**: `gcloud` CLI and Application Default Credentials for database connections via SSH tunnel
 
 > **Note:** kubectl-localmesh uses WebSocket-based port-forwarding, which requires Kubernetes 1.30 or later. SPDY-based port-forwarding (used in Kubernetes 1.29 and earlier) is not supported.
 
@@ -88,6 +90,10 @@ macOS example:
 
 ```bash
 brew install envoy
+
+# For GCP SSH Bastion support (optional):
+# Install gcloud CLI: https://cloud.google.com/sdk/docs/install
+gcloud auth application-default login
 ```
 
 ## Usage
@@ -98,32 +104,61 @@ Create a services.yaml file:
 
 ```yaml
 listener_port: 80
+
+# Optional: GCP SSH Bastions for database connections
+ssh_bastions:
+  primary:
+    instance: bastion-instance-1
+    zone: asia-northeast1-a
+    project: my-gcp-project
+
 services:
-  - host: users-api.localhost
+  # Kubernetes Services (HTTP/gRPC)
+  - kind: kubernetes
+    host: users-api.localhost
     namespace: users
     service: users-api
     port_name: grpc
-    type: grpc
+    protocol: grpc
 
-  - host: billing-api.localhost
+  - kind: kubernetes
+    host: billing-api.localhost
     namespace: billing
     service: billing-api
     port_name: http
-    type: http
+    protocol: http
 
-  - host: admin.localhost
+  - kind: kubernetes
+    host: admin.localhost
     namespace: admin
     service: admin-web
     port: 8080
-    type: http
+    protocol: http
+
+  # Database via GCP SSH Bastion (TCP)
+  - kind: tcp
+    host: users-db.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1  # Private IP (e.g., Cloud SQL)
+    target_port: 5432
 ```
 
-Notes:
-- host is the local access hostname
-- namespace and service refer to the Kubernetes Service
-- Use port_name if the Service has multiple ports
-- port can be used as a fallback for explicit control
-- type is currently informational (HTTP / gRPC)
+**Notes:**
+
+**For Kubernetes Services:**
+- `kind`: Must be `kubernetes`
+- `host`: Local access hostname
+- `namespace` and `service`: Kubernetes Service reference
+- `port_name`: Used if the Service has multiple ports
+- `port`: Explicit port number (fallback)
+- `protocol`: `http` or `grpc`
+
+**For Database via SSH Bastion:**
+- `kind`: Must be `tcp`
+- `host`: Local access hostname
+- `ssh_bastion`: Reference to a defined SSH bastion
+- `target_host`: Target database IP (private IP accessible from bastion)
+- `target_port`: Target database port
 
 ### Run
 
@@ -183,15 +218,21 @@ By default, `/etc/hosts` is automatically updated, enabling simple hostname-base
 
 - HTTP: `curl http://billing-api.localhost/health`
 - gRPC: `grpcurl -plaintext users-api.localhost list`
+- **Database (TCP)**: `psql -h users-db.localhost -p 5432 -U myuser`
 
 When using port 80 (set `listener_port: 80` in config):
 
 - HTTP: `curl http://billing-api.localhost/health`
 - gRPC: `grpcurl -plaintext users-api.localhost list`
 
-No local port numbers to remember.
+No local port numbers to remember (for HTTP/gRPC).
 No conflicts to resolve.
 No Host header required.
+
+**TCP database connections:**
+- Each TCP service (database) uses its own dedicated port (defined by `target_port`)
+- Example: PostgreSQL on port 5432, MySQL on port 3306
+- Access via hostname:port (e.g., `users-db.localhost:5432`)
 
 gRPC notes
 - gRPC is supported over plaintext (h2c)
@@ -277,6 +318,70 @@ This is useful for:
 
 ---
 
+## Breaking Changes (v0.2.0)
+
+### Configuration File Format Change
+
+**Version 0.2.0 introduces a breaking change in the configuration file format.** The old `type` field has been replaced with a `kind` field for clearer service type distinction.
+
+### Migration Guide
+
+#### Old Format (v0.1.x):
+
+```yaml
+services:
+  # Kubernetes Service
+  - host: users-api.localhost
+    namespace: users
+    service: users-api
+    type: grpc  # OLD: combined type field
+
+  # TCP Service via SSH Bastion
+  - host: db.localhost
+    type: tcp  # OLD: same 'type' field for different concepts
+    ssh_bastion: primary
+    target_host: 10.0.0.1
+    target_port: 5432
+```
+
+#### New Format (v0.2.0+):
+
+```yaml
+services:
+  # Kubernetes Service
+  - kind: kubernetes  # NEW: explicit kind field
+    host: users-api.localhost
+    namespace: users
+    service: users-api
+    protocol: grpc  # NEW: separate protocol field
+
+  # TCP Service via SSH Bastion
+  - kind: tcp  # NEW: explicit kind field
+    host: db.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1
+    target_port: 5432
+```
+
+### Migration Steps:
+
+1. **For Kubernetes Services (HTTP/gRPC)**:
+   - Add `kind: kubernetes` field
+   - Rename `type: http/grpc` to `protocol: http/grpc`
+
+2. **For TCP Services (SSH Bastion)**:
+   - Change `type: tcp` to `kind: tcp`
+   - Other fields remain the same
+
+### Why This Change?
+
+The new format provides:
+- **Type Safety**: Clear distinction between service kinds at the type level
+- **Better Validation**: Kind-specific validation rules
+- **Clearer Semantics**: `kind` distinguishes the service mechanism, `protocol` distinguishes HTTP vs gRPC
+
+---
+
 What this is NOT
 
 This tool intentionally does not:
@@ -303,7 +408,8 @@ Design philosophy
 Roadmap ideas
 
 - krew distribution
-- ✅ Subcommands (`up` implemented, `down` and `status` planned)
+- ✅ Subcommands (`up` and `dump-envoy-config` implemented, `down` and `status` planned)
+- ✅ **GCP SSH Bastion support for database connections (TCP proxy)**
 - TLS support via local certificates
 - gRPC-web support
 - Envoy-less HTTP-only mode

@@ -4,14 +4,31 @@ type Route struct {
 	Host        string
 	LocalPort   int
 	ClusterName string
+	Type        string // "http" or "tcp"
+	ListenPort  int    // TCP用のリスンポート（Type="tcp"の場合のみ使用）
 }
 
 func BuildConfig(listenerPort int, routes []Route) map[string]any {
 	var clusters []any
 	var vhosts []any
+	var listeners []any
+
+	// HTTPルートとTCPルートを分離
+	var httpRoutes []Route
+	var tcpRoutes []Route
 
 	for _, r := range routes {
-		clusters = append(clusters, map[string]any{
+		if r.Type == "tcp" {
+			tcpRoutes = append(tcpRoutes, r)
+		} else {
+			// デフォルトはHTTP（既存の動作を維持）
+			httpRoutes = append(httpRoutes, r)
+		}
+	}
+
+	// すべてのルート用のクラスタを生成
+	for _, r := range routes {
+		cluster := map[string]any{
 			"name":            r.ClusterName,
 			"type":            "STATIC",
 			"connect_timeout": "1s",
@@ -34,63 +51,68 @@ func BuildConfig(listenerPort int, routes []Route) map[string]any {
 					},
 				},
 			},
-			"typed_extension_protocol_options": map[string]any{
+		}
+
+		// HTTP/gRPCの場合はHTTP/2プロトコルオプションを追加
+		if r.Type != "tcp" {
+			cluster["typed_extension_protocol_options"] = map[string]any{
 				"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": map[string]any{
 					"@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
 					"explicit_http_config": map[string]any{
 						"http2_protocol_options": map[string]any{},
 					},
 				},
-			},
-		})
+			}
+		}
 
-		vhosts = append(vhosts, map[string]any{
-			"name":    r.ClusterName,
-			"domains": []any{r.Host},
-			"routes": []any{
-				map[string]any{
-					"match": map[string]any{"prefix": "/"},
-					"route": map[string]any{
-						"cluster": r.ClusterName,
-						"timeout": "0s",
-					},
-				},
-			},
-		})
+		clusters = append(clusters, cluster)
 	}
 
-	return map[string]any{
-		"static_resources": map[string]any{
-			"listeners": []any{
-				map[string]any{
-					"name": "listener_http",
-					"address": map[string]any{
-						"socket_address": map[string]any{
-							"address":    "0.0.0.0",
-							"port_value": listenerPort,
+	// HTTPリスナーの生成（HTTPルートが存在する場合）
+	if len(httpRoutes) > 0 {
+		for _, r := range httpRoutes {
+			vhosts = append(vhosts, map[string]any{
+				"name":    r.ClusterName,
+				"domains": []any{r.Host},
+				"routes": []any{
+					map[string]any{
+						"match": map[string]any{"prefix": "/"},
+						"route": map[string]any{
+							"cluster": r.ClusterName,
+							"timeout": "0s",
 						},
 					},
-					"filter_chains": []any{
+				},
+			})
+		}
+
+		httpListener := map[string]any{
+			"name": "listener_http",
+			"address": map[string]any{
+				"socket_address": map[string]any{
+					"address":    "0.0.0.0",
+					"port_value": listenerPort,
+				},
+			},
+			"filter_chains": []any{
+				map[string]any{
+					"filters": []any{
 						map[string]any{
-							"filters": []any{
-								map[string]any{
-									"name": "envoy.filters.network.http_connection_manager",
-									"typed_config": map[string]any{
-										"@type":                  "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-										"stat_prefix":            "ingress_http",
-										"codec_type":             "AUTO",
-										"http2_protocol_options": map[string]any{},
-										"route_config": map[string]any{
-											"name":          "local_route",
-											"virtual_hosts": vhosts,
-										},
-										"http_filters": []any{
-											map[string]any{
-												"name": "envoy.filters.http.router",
-												"typed_config": map[string]any{
-													"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
-												},
-											},
+							"name": "envoy.filters.network.http_connection_manager",
+							"typed_config": map[string]any{
+								"@type":                  "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+								"stat_prefix":            "ingress_http",
+								"codec_type":             "AUTO",
+								"http2_protocol_options": map[string]any{},
+								"route_config": map[string]any{
+									"name":          "local_route",
+									"virtual_hosts": vhosts,
+								},
+								"http_filters": []any{
+									map[string]any{
+										"name": "envoy.filters.http.router",
+										"typed_config": map[string]any{
+											"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
 										},
 									},
 								},
@@ -99,7 +121,42 @@ func BuildConfig(listenerPort int, routes []Route) map[string]any {
 					},
 				},
 			},
-			"clusters": clusters,
+		}
+		listeners = append(listeners, httpListener)
+	}
+
+	// TCPリスナーの生成（TCPルートごとに独立したリスナー）
+	for _, r := range tcpRoutes {
+		tcpListener := map[string]any{
+			"name": "listener_tcp_" + r.ClusterName,
+			"address": map[string]any{
+				"socket_address": map[string]any{
+					"address":    "0.0.0.0",
+					"port_value": r.ListenPort,
+				},
+			},
+			"filter_chains": []any{
+				map[string]any{
+					"filters": []any{
+						map[string]any{
+							"name": "envoy.filters.network.tcp_proxy",
+							"typed_config": map[string]any{
+								"@type":       "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+								"stat_prefix": "tcp_" + r.ClusterName,
+								"cluster":     r.ClusterName,
+							},
+						},
+					},
+				},
+			},
+		}
+		listeners = append(listeners, tcpListener)
+	}
+
+	return map[string]any{
+		"static_resources": map[string]any{
+			"listeners": listeners,
+			"clusters":  clusters,
 		},
 	}
 }

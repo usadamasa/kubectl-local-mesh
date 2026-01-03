@@ -1,19 +1,38 @@
 listener_port: 80
+
+# Optional: GCP SSH Bastions for database connections
+ssh_bastions:
+  primary:
+    instance: bastion-instance-1
+    zone: asia-northeast1-a
+    project: my-gcp-project
+
 services:
-  - host: users-api.localhost
+  # Kubernetes Services (HTTP/gRPC)
+  - kind: kubernetes
+    host: users-api.localhost
     namespace: users
     service: users-api
     port_name: grpc
-    type: grpc
+    protocol: grpc
 
-  - host: billing-api.localhost
+  - kind: kubernetes
+    host: billing-api.localhost
     namespace: billing
     service: billing-api
     port_name: http
-    type: http
+    protocol: http
 
-  - host: admin.localhost
+  - kind: kubernetes
+    host: admin.localhost
     namespace: admin
     service: admin-web
     port: 8080
-    type: http
+    protocol: http
+
+  # Database via GCP SSH Bastion (TCP)
+  - kind: tcp
+    host: users-db.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1  # Private IP (e.g., Cloud SQL)
+    target_port: 5432

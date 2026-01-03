@@ -12,6 +12,7 @@ import (
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
+	"github.com/usadamasa/kubectl-localmesh/internal/gcp"
 	"github.com/usadamasa/kubectl-localmesh/internal/hosts"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
 	"github.com/usadamasa/kubectl-localmesh/internal/pf"
@@ -33,8 +34,9 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 
 		// ホスト名リストを収集
 		var hostnames []string
-		for _, s := range cfg.Services {
-			hostnames = append(hostnames, s.Host)
+		for _, svcDef := range cfg.Services {
+			svc := svcDef.Get()
+			hostnames = append(hostnames, svc.GetHost())
 		}
 
 		// /etc/hostsに追加
@@ -61,57 +63,123 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 
 	var routes []envoy.Route
 
-	for _, s := range cfg.Services {
-		remotePort, err := k8s.ResolveServicePort(
-			ctx,
-			clientset,
-			s.Namespace,
-			s.Service,
-			s.PortName,
-			s.Port,
-		)
-		if err != nil {
-			return err
-		}
+	for _, svcDef := range cfg.Services {
+		svc := svcDef.Get()
+		var localPort int
+		var clusterName string
+		var routeType string
+		var listenPort int
 
-		localPort, err := pf.FreeLocalPort()
-		if err != nil {
-			return err
-		}
-
-		clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-
-		fmt.Printf(
-			"pf: %-30s -> %s/%s:%d via 127.0.0.1:%d\n",
-			s.Host,
-			s.Namespace,
-			s.Service,
-			remotePort,
-			localPort,
-		)
-
-		// port-forwardをgoroutineで起動（自動再接続）
-		go func(ns, svc string, local, remote int) {
-			if err := k8s.StartPortForwardLoop(
-				ctx,
-				restConfig,
-				clientset,
-				ns,
-				svc,
-				local,
-				remote,
-			); err != nil {
-				// contextキャンセル以外のエラーをログ出力
-				if ctx.Err() == nil {
-					fmt.Fprintf(os.Stderr, "port-forward error for %s/%s: %v\n", ns, svc, err)
-				}
+		// type switchで型判別
+		switch s := svc.(type) {
+		case *config.TCPService:
+			// TCP + SSH Bastion経由の接続
+			bastion, ok := cfg.SSHBastions[s.SSHBastion]
+			if !ok {
+				return fmt.Errorf("ssh_bastion '%s' not found for service '%s'", s.SSHBastion, s.Host)
 			}
-		}(s.Namespace, s.Service, localPort, remotePort)
+
+			lp, err := pf.FreeLocalPort()
+			if err != nil {
+				return err
+			}
+			localPort = lp
+
+			clusterName = sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
+			routeType = "tcp"
+			listenPort = s.TargetPort
+
+			fmt.Printf(
+				"gcp-ssh: %-30s -> %s (instance=%s, zone=%s) -> %s:%d via 127.0.0.1:%d\n",
+				s.Host,
+				s.SSHBastion,
+				bastion.Instance,
+				bastion.Zone,
+				s.TargetHost,
+				s.TargetPort,
+				localPort,
+			)
+
+			// GCP SSH tunnelをgoroutineで起動（自動再接続）
+			go func(b *config.SSHBastion, local int, target string, targetPort int) {
+				if err := gcp.StartGCPSSHTunnel(
+					ctx,
+					b,
+					local,
+					target,
+					targetPort,
+					logLevel,
+				); err != nil {
+					// contextキャンセル以外のエラーをログ出力
+					if ctx.Err() == nil {
+						fmt.Fprintf(os.Stderr, "gcp-ssh tunnel error for %s: %v\n", b.Instance, err)
+					}
+				}
+			}(bastion, localPort, s.TargetHost, s.TargetPort)
+
+		case *config.KubernetesService:
+			// Kubernetes Service経由の接続
+			remotePort, err := k8s.ResolveServicePort(
+				ctx,
+				clientset,
+				s.Namespace,
+				s.Service,
+				s.PortName,
+				s.Port,
+			)
+			if err != nil {
+				return err
+			}
+
+			lp, err := pf.FreeLocalPort()
+			if err != nil {
+				return err
+			}
+			localPort = lp
+
+			clusterName = sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
+			routeType = s.Protocol
+			if routeType == "" {
+				routeType = "http" // デフォルト
+			}
+
+			fmt.Printf(
+				"pf: %-30s -> %s/%s:%d via 127.0.0.1:%d\n",
+				s.Host,
+				s.Namespace,
+				s.Service,
+				remotePort,
+				localPort,
+			)
+
+			// port-forwardをgoroutineで起動（自動再接続）
+			go func(ns, svc string, local, remote int) {
+				if err := k8s.StartPortForwardLoop(
+					ctx,
+					restConfig,
+					clientset,
+					ns,
+					svc,
+					local,
+					remote,
+				); err != nil {
+					// contextキャンセル以外のエラーをログ出力
+					if ctx.Err() == nil {
+						fmt.Fprintf(os.Stderr, "port-forward error for %s/%s: %v\n", ns, svc, err)
+					}
+				}
+			}(s.Namespace, s.Service, localPort, remotePort)
+
+		default:
+			return fmt.Errorf("unknown service type: %T", s)
+		}
 
 		routes = append(routes, envoy.Route{
-			Host:        s.Host,
+			Host:        svc.GetHost(),
 			LocalPort:   localPort,
 			ClusterName: clusterName,
+			Type:        routeType,
+			ListenPort:  listenPort,
 		})
 	}
 
@@ -168,40 +236,63 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 
 	var routes []envoy.Route
 
-	for i, s := range cfg.Services {
-		var remotePort int
+	for i, svcDef := range cfg.Services {
+		svc := svcDef.Get()
 
-		// モック設定が指定されている場合はモックから取得
-		if mockCfg != nil {
-			remotePort, err = findMockPort(mockCfg, s.Namespace, s.Service, s.PortName)
-			if err != nil {
-				return err
+		// type switchで型判別
+		switch s := svc.(type) {
+		case *config.KubernetesService:
+			var remotePort int
+
+			// モック設定が指定されている場合はモックから取得
+			if mockCfg != nil {
+				remotePort, err = findMockPort(mockCfg, s.Namespace, s.Service, s.PortName)
+				if err != nil {
+					return err
+				}
+			} else {
+				// モック設定がない場合は通常通りclient-goで解決
+				remotePort, err = k8s.ResolveServicePort(
+					ctx,
+					clientset,
+					s.Namespace,
+					s.Service,
+					s.PortName,
+					s.Port,
+				)
+				if err != nil {
+					return err
+				}
 			}
-		} else {
-			// モック設定がない場合は通常通りclient-goで解決
-			remotePort, err = k8s.ResolveServicePort(
-				ctx,
-				clientset,
-				s.Namespace,
-				s.Service,
-				s.PortName,
-				s.Port,
-			)
-			if err != nil {
-				return err
-			}
+
+			// ダミーのローカルポートを割り当て（実際にはport-forwardしない）
+			dummyLocalPort := 10000 + i
+
+			clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
+
+			routes = append(routes, envoy.Route{
+				Host:        s.Host,
+				LocalPort:   dummyLocalPort,
+				ClusterName: clusterName,
+				Type:        s.Protocol,
+			})
+
+		case *config.TCPService:
+			// TCPサービスの場合（dump-envoy-configでは簡易処理）
+			dummyLocalPort := 10000 + i
+			clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
+
+			routes = append(routes, envoy.Route{
+				Host:        s.Host,
+				LocalPort:   dummyLocalPort,
+				ClusterName: clusterName,
+				Type:        "tcp",
+				ListenPort:  s.TargetPort,
+			})
+
+		default:
+			return fmt.Errorf("unknown service type: %T", s)
 		}
-
-		// ダミーのローカルポートを割り当て（実際にはport-forwardしない）
-		dummyLocalPort := 10000 + i
-
-		clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-
-		routes = append(routes, envoy.Route{
-			Host:        s.Host,
-			LocalPort:   dummyLocalPort,
-			ClusterName: clusterName,
-		})
 	}
 
 	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, routes)
