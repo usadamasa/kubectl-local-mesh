@@ -59,6 +59,41 @@ else
 fi
 echo ""
 
+# GCP関連の依存関係（オプション - SSH Bastion使用時のみ必要）
+echo "【GCP関連（オプション - SSH Bastion使用時のみ）】"
+echo "ℹ️  GCP SSH Bastion経由のDB接続を使用する場合に必要です"
+echo ""
+
+# gcloud CLIの確認
+echo "  - gcloud CLI"
+if ! command -v gcloud &> /dev/null; then
+    echo "    ⚠️  gcloud コマンドが見つかりません"
+    echo "       インストール方法: https://cloud.google.com/sdk/docs/install"
+else
+    version=$(gcloud version 2>&1 | head -n 1)
+    echo "    ✅ gcloud: $version"
+fi
+echo ""
+
+# Application Default Credentials確認
+echo "  - Application Default Credentials (ADC)"
+if [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+        echo "    ✅ 環境変数GOOGLE_APPLICATION_CREDENTIALSが設定されています"
+        echo "       ファイル: $GOOGLE_APPLICATION_CREDENTIALS"
+    else
+        echo "    ⚠️  GOOGLE_APPLICATION_CREDENTIALSが設定されていますが、ファイルが存在しません"
+        echo "       ファイル: $GOOGLE_APPLICATION_CREDENTIALS"
+    fi
+elif [ -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
+    echo "    ✅ Application Default Credentialsが設定されています"
+    echo "       ファイル: $HOME/.config/gcloud/application_default_credentials.json"
+else
+    echo "    ⚠️  Application Default Credentialsが見つかりません"
+    echo "       設定方法: gcloud auth application-default login"
+fi
+echo ""
+
 # 結果サマリー
 echo "==================================="
 if [ $exit_code -eq 0 ]; then

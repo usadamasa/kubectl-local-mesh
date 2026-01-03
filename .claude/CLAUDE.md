@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-`kubectl-localmesh`は、`kubectl port-forward`をベースにしたローカル専用の疑似サービスメッシュツールです。複数のKubernetesサービスに対して、単一のローカルエントリポイントからホストベースのルーティング（HTTP/gRPC）でアクセスできます。
+`kubectl-localmesh`は、`kubectl port-forward`およびGCP SSH bastionをベースにしたローカル専用の疑似サービスメッシュツールです。複数のKubernetesサービス（HTTP/gRPC）およびGCP SSH bastion経由のDB接続（TCP）に対して、ローカルエントリポイントからアクセスできます。
 
 **CLIフレームワーク:** [Cobra](https://github.com/spf13/cobra)を使用したサブコマンド構造
 
 **重要な設計原則:**
 - クラスタ側には何もインストールしない（kubectl primitives only）
+- GCP SSH bastionを使用したDB接続（TCP proxy）のサポート
 - ローカル開発・デバッグ専用（本番環境は対象外）
 - 障害モードを明確に保つ
 - 起動・破棄が容易
 
 ## アーキテクチャ
+
+### Kubernetesサービス（HTTP/gRPC）
 
 ```
 クライアント
@@ -25,6 +28,19 @@ kubectl port-forward (各サービスごとに自動起動・再接続)
   ↓
 Kubernetesサービス
 ```
+
+### DB接続（TCP via GCP SSH Bastion）
+
+```
+クライアント
+  ↓ (tcp://db.localhost:5432)
+ローカルEnvoy (TCP proxy)
+  ↓ (動的に割り当てられたローカルポート)
+GCP SSH tunnel (GCP Compute Instance経由)
+  ↓ (SSH port-forward)
+GCP Bastion
+  ↓
+DB (Cloud SQL等、Private IP)
 
 ### 主要コンポーネント
 
@@ -38,34 +54,44 @@ Kubernetesサービス
 
 2. **config** (`internal/config/`)
    - YAMLベースの設定ファイル読み込み
-   - `listener_port`: Envoyが待ち受けるローカルポート（デフォルト: 80）
-   - `services`: ルーティング対象のサービス一覧（host, namespace, service, port/port_name, type）
+   - `listener_port`: Envoyが待ち受けるローカルポート（デフォルト: 80、HTTP/gRPC用）
+   - `ssh_bastions`: GCP SSH bastion定義（instance, zone, project）
+   - `services`: ルーティング対象のサービス一覧
+     - Kubernetes: host, namespace, service, port/port_name, type (http|grpc)
+     - DB via SSH: host, type (tcp), ssh_bastion, target_host, target_port
 
-3. **kube** (`internal/kube/`)
-   - `kubectl`コマンドのラッパー
+3. **kube** (`internal/k8s/`)
+   - Kubernetes client-go wrapper
    - サービスのポート解決（port_name指定またはports[0]をフォールバック）
-   - JSONPathを使ったService定義の取得
+   - WebSocket-based port-forward実装
 
 4. **pf** (`internal/pf/`)
-   - `kubectl port-forward`のライフサイクル管理
-   - 自動再接続ループ（bashスクリプト経由）
-   - 動的なローカルポート割り当て（`FreeLocalPort`）
+   - ローカルポート割り当て（`FreeLocalPort`）
 
-5. **envoy** (`internal/envoy/`)
+5. **gcp** (`internal/gcp/`)
+   - **GCP SSH tunnel実装**
+   - GCP Compute Instance経由のSSH port-forward
+   - `gcloud compute ssh`コマンドをexec.Commandで実行
+   - Application Default Credentials (ADC)は`gcloud`コマンドが自動処理
+   - 自動再接続ループ（300ms間隔）
+
+6. **envoy** (`internal/envoy/`)
    - Envoy設定ファイル（YAML）の動的生成
    - HTTP/2対応（h2c plaintext for gRPC）
-   - ホストベースのvirtual_hosts設定
-   - 各サービスへのSTATICクラスタ定義
+   - ホストベースのvirtual_hosts設定（HTTP/gRPC）
+   - **TCP proxy設定** (新規)
+     - 各TCPサービス（DB）に独立したリスナー
+     - 専用ポート番号（target_portで指定）
 
-6. **hosts** (`internal/hosts/`)
+7. **hosts** (`internal/hosts/`)
    - /etc/hosts ファイルの管理
    - マーカーコメントによるエントリの追跡・削除
    - 書き込み権限チェック
 
-7. **run** (`internal/run/`)
+8. **run** (`internal/run/`)
    - オーケストレーションロジック
-   - 各サービスに対してport-forwardプロセスを起動
-   - Envoy設定を生成・適用
+   - 各サービスに対してport-forwardまたはSSH tunnelを起動
+   - Envoy設定を生成・適用（HTTP/gRPC + TCP）
    - Envoyプロセスの起動・監視
    - クリーンアップ処理
 
@@ -132,21 +158,72 @@ sudo kubectl-localmesh up services.yaml
 
 ## 設定ファイル形式
 
+**v0.2.0から設定ファイル形式が変更されました。** `kind`フィールドによるタグ付きユニオン型を採用しています。
+
 ```yaml
 listener_port: 80
+
+# GCP SSH Bastion定義（オプション）
+ssh_bastions:
+  primary:
+    instance: bastion-instance-1    # GCP Compute Instance名
+    zone: asia-northeast1-a         # ゾーン
+    project: my-gcp-project         # プロジェクトID
+
 services:
-  - host: users-api.localhost       # ローカルアクセス用ホスト名
+  # Kubernetesサービス（HTTP/gRPC）
+  - kind: kubernetes                 # 明示的な型区別（kubernetes固定）
+    host: users-api.localhost        # ローカルアクセス用ホスト名
     namespace: users                 # K8s namespace
     service: users-api               # K8s Service名
     port_name: grpc                  # Serviceのport名（複数ポートがある場合）
-    type: grpc                       # メタデータ（http/grpc）
+    protocol: grpc                   # http|grpc
 
-  - host: admin.localhost
+  - kind: kubernetes
+    host: admin.localhost
     namespace: admin
     service: admin-web
     port: 8080                       # 明示的なポート番号指定も可能
-    type: http
+    protocol: http
+
+  # DB接続（TCP via GCP SSH Bastion）
+  - kind: tcp                        # 明示的な型区別（tcp固定）
+    host: users-db.localhost
+    ssh_bastion: primary             # ssh_bastions mapのkey
+    target_host: 10.0.0.1            # Private IP (Cloud SQL等)
+    target_port: 5432                # DBポート
 ```
+
+### 構造体階層
+
+**v0.2.0でタグ付きユニオン型を導入:**
+
+```
+Service (interface)
+  └─ GetHost() string
+  └─ GetKind() string
+  └─ Validate(*Config) error
+
+ServiceDefinition (tagged union root)
+  └─ service Service  // 内部フィールド
+  └─ Get() Service
+  └─ AsKubernetes() (*KubernetesService, bool)
+  └─ AsTCP() (*TCPService, bool)
+  └─ UnmarshalYAML()  // kind判別
+  └─ MarshalYAML()    // kind自動付与
+
+KubernetesService (kubectl port-forward)
+  └─ Host, Namespace, Service, PortName, Port, Protocol
+
+TCPService (GCP SSH tunnel)
+  └─ Host, SSHBastion, TargetHost, TargetPort
+```
+
+**利点:**
+- **型安全性**: コンパイル時に型制約を検証
+- **明確なバリデーション**: 各サービス型が自身のValidate()を持つ
+- **拡張性**: 新しいkind追加が容易
+- **可読性**: type switchで処理が明確
 
 ## 依存関係
 
@@ -155,6 +232,11 @@ services:
   - `envoy`: ローカルプロキシとして動作（macOS: `brew install envoy`）
   - `bash`: port-forwardループスクリプト実行
   - **Kubernetes 1.30+**: WebSocket port-forward対応が必須
+  - **GCP SSH Bastion (オプション):**
+    - `gcloud` CLI: SSH tunnel確立用（`gcloud compute ssh`コマンドを使用）
+    - Application Default Credentials (ADC)
+      - `gcloud auth application-default login` または
+      - 環境変数 `GOOGLE_APPLICATION_CREDENTIALS`
 
 - **Go modules:**
   - `gopkg.in/yaml.v3`: 設定ファイルパース
