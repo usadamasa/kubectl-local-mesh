@@ -5,6 +5,7 @@ type Route struct {
 	LocalPort   int
 	ClusterName string
 	Type        string // "http" or "tcp"
+	Protocol    string // "http" | "http2" | "grpc" (HTTPプロトコルバージョン選択用)
 	ListenPort  int    // TCP用のリスンポート（Type="tcp"の場合のみ使用）
 }
 
@@ -53,14 +54,26 @@ func BuildConfig(listenerPort int, routes []Route) map[string]any {
 			},
 		}
 
-		// HTTP/gRPCの場合はHTTP/2プロトコルオプションを追加
+		// HTTP/gRPCの場合はプロトコルオプションを追加
 		if r.Type != "tcp" {
+			var httpConfig map[string]any
+
+			if r.Protocol == "grpc" || r.Protocol == "http2" {
+				// gRPC / HTTP/2: HTTP/2（h2c）
+				httpConfig = map[string]any{
+					"http2_protocol_options": map[string]any{},
+				}
+			} else {
+				// HTTP/1.1（デフォルト、protocol: http または未指定）
+				httpConfig = map[string]any{
+					"http_protocol_options": map[string]any{},
+				}
+			}
+
 			cluster["typed_extension_protocol_options"] = map[string]any{
 				"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": map[string]any{
 					"@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
-					"explicit_http_config": map[string]any{
-						"http2_protocol_options": map[string]any{},
-					},
+					"explicit_http_config": httpConfig,
 				},
 			}
 		}

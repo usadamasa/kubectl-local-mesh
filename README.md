@@ -34,7 +34,7 @@ Think of it as a **shadow gateway** for your cluster.
 
 - Local-only (no cluster changes)
 - Works across multiple namespaces
-- Supports HTTP and gRPC (h2c / plaintext)
+- Supports HTTP/1.1, HTTP/2 (h2c), and gRPC
 - **Supports TCP connections via GCP SSH Bastion (for databases)**
 - Automatic local port assignment (no collisions)
 - Single fixed entry port for HTTP/gRPC, dedicated ports for TCP
@@ -135,6 +135,14 @@ services:
     port: 8080
     protocol: http
 
+  # HTTP/2 Service (modern HTTP API)
+  - kind: kubernetes
+    host: api-v2.localhost
+    namespace: api
+    service: api-service
+    port_name: http
+    protocol: http2  # Explicitly use HTTP/2
+
   # Database via GCP SSH Bastion (TCP)
   - kind: tcp
     host: users-db.localhost
@@ -151,7 +159,10 @@ services:
 - `namespace` and `service`: Kubernetes Service reference
 - `port_name`: Used if the Service has multiple ports
 - `port`: Explicit port number (fallback)
-- `protocol`: `http` or `grpc`
+- `protocol`: `http`, `http2`, or `grpc`
+  - `http`: HTTP/1.1 (default for most REST APIs)
+  - `http2`: HTTP/2 cleartext (h2c) for HTTP/2-capable services
+  - `grpc`: gRPC (requires HTTP/2)
 
 **For Database via SSH Bastion:**
 - `kind`: Must be `tcp`
@@ -238,6 +249,36 @@ gRPC notes
 - gRPC is supported over plaintext (h2c)
 - Clients must allow non-TLS connections (e.g. grpcurl -plaintext)
 - If your client requires TLS, Envoy can be configured for local TLS termination (future work)
+
+### Protocol Selection Guide
+
+kubectl-localmesh supports three protocol options for Kubernetes services:
+
+- **`protocol: http`** (default)
+  - Use for standard REST APIs that only support HTTP/1.1
+  - Most compatible option
+  - Example: Traditional web services, legacy APIs
+
+- **`protocol: http2`**
+  - Use for services that explicitly support HTTP/2
+  - Better performance with multiplexing
+  - Example: Modern HTTP APIs optimized for HTTP/2
+  - Note: Service must support HTTP/2 cleartext (h2c)
+
+- **`protocol: grpc`**
+  - Use for gRPC services
+  - Requires HTTP/2 (automatically configured)
+  - Example: gRPC microservices
+
+**How to choose:**
+1. If the service is gRPC → use `protocol: grpc`
+2. If the service supports HTTP/2 → use `protocol: http2` for better performance
+3. If unsure or service only supports HTTP/1.1 → use `protocol: http` (default)
+
+**Troubleshooting:**
+- If you get "502 Bad Gateway" with `protocol error`, the service likely only supports HTTP/1.1
+  - Solution: Change to `protocol: http`
+- If gRPC calls fail, ensure you're using `protocol: grpc` (not `http2`)
 
 ### /etc/hosts Automatic Management
 
