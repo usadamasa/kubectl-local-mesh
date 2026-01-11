@@ -151,8 +151,8 @@ func (k *KubernetesService) Validate(cfg *Config) error {
 	if k.Service == "" {
 		return fmt.Errorf("service is required for kubernetes service '%s'", k.Host)
 	}
-	if k.Protocol != "http" && k.Protocol != "grpc" {
-		return fmt.Errorf("protocol must be 'http' or 'grpc' for kubernetes service '%s', got '%s'", k.Host, k.Protocol)
+	if k.Protocol != "http" && k.Protocol != "http2" && k.Protocol != "grpc" {
+		return fmt.Errorf("protocol must be 'http', 'http2', or 'grpc' for kubernetes service '%s', got '%s'", k.Host, k.Protocol)
 	}
 	return nil
 }

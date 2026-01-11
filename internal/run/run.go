@@ -68,6 +68,7 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 		var localPort int
 		var clusterName string
 		var routeType string
+		var routeProtocol string
 		var listenPort int
 
 		// type switchで型判別
@@ -138,9 +139,10 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 			localPort = lp
 
 			clusterName = sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-			routeType = s.Protocol
-			if routeType == "" {
-				routeType = "http" // デフォルト
+			routeType = "http" // 非TCPサービスは "http" に統一
+			routeProtocol = s.Protocol
+			if routeProtocol == "" {
+				routeProtocol = "http" // デフォルトはHTTP/1.1
 			}
 
 			fmt.Printf(
@@ -180,6 +182,7 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 			LocalPort:   localPort,
 			ClusterName: clusterName,
 			Type:        routeType,
+			Protocol:    routeProtocol,
 			ListenPort:  listenPort,
 		})
 	}
@@ -275,7 +278,8 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 				Host:        s.Host,
 				LocalPort:   dummyLocalPort,
 				ClusterName: clusterName,
-				Type:        s.Protocol,
+				Type:        "http",
+				Protocol:    s.Protocol,
 			})
 
 		case *config.TCPService:

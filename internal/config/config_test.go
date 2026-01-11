@@ -894,7 +894,7 @@ func TestKubernetesService_ValidateEdgeCases(t *testing.T) {
 			name:    "invalid protocol",
 			svc:     &KubernetesService{Host: "test.localhost", Namespace: "test", Service: "svc", Protocol: "invalid"},
 			wantErr: true,
-			errMsg:  "protocol must be",
+			errMsg:  "protocol must be 'http', 'http2', or 'grpc'",
 		},
 	}
 
