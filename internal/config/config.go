@@ -9,9 +9,9 @@ import (
 )
 
 type Config struct {
-	ListenerPort int                      `yaml:"listener_port"`
-	SSHBastions  map[string]*SSHBastion   `yaml:"ssh_bastions,omitempty"`
-	Services     []ServiceDefinition      `yaml:"services"`
+	ListenerPort int                    `yaml:"listener_port"`
+	SSHBastions  map[string]*SSHBastion `yaml:"ssh_bastions,omitempty"`
+	Services     []ServiceDefinition    `yaml:"services"`
 }
 
 type SSHBastion struct {

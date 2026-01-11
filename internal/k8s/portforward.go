@@ -26,7 +26,7 @@ type PortForwarderFactory interface {
 		ctx context.Context,
 		namespace, podName string,
 		localPort, remotePort int,
-	) (PortForwarder, error)
+	) (PortForwarder, chan struct{}, error)
 }
 
 // websocketPortForwarderFactory implements PortForwarderFactory using WebSocket protocol.
@@ -44,19 +44,19 @@ func (f *websocketPortForwarderFactory) CreatePortForwarder(
 	ctx context.Context,
 	namespace, podName string,
 	localPort, remotePort int,
-) (PortForwarder, error) {
+) (PortForwarder, chan struct{}, error) {
 	// Pod port-forward用のURL構築
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, podName)
 	serverURL, err := url.Parse(f.config.Host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse host URL: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse host URL: %w", err)
 	}
 	serverURL.Path = path
 
 	// WebSocket dialerを作成（client-go v0.30+の新しいAPI）
 	dialer, err := portforward.NewSPDYOverWebsocketDialer(serverURL, f.config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create WebSocket dialer: %w", err)
+		return nil, nil, fmt.Errorf("failed to create WebSocket dialer: %w", err)
 	}
 
 	// ポート仕様（"localPort:remotePort"形式）
@@ -82,10 +82,10 @@ func (f *websocketPortForwarderFactory) CreatePortForwarder(
 		io.Discard, // stderr
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create port forwarder: %w", err)
+		return nil, nil, fmt.Errorf("failed to create port forwarder: %w", err)
 	}
 
-	return pf, nil
+	return pf, readyChan, nil
 }
 
 // StartPortForwardLoop starts port-forwarding with automatic reconnection.
@@ -98,10 +98,11 @@ func StartPortForwardLoop(
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
 	localPort, remotePort int,
+	logLevel string,
 ) error {
 	factory := NewWebSocketPortForwarderFactory(config)
 	return StartPortForwardLoopWithFactory(
-		ctx, factory, clientset, namespace, serviceName, localPort, remotePort,
+		ctx, factory, clientset, namespace, serviceName, localPort, remotePort, logLevel,
 	)
 }
 
@@ -113,6 +114,7 @@ func StartPortForwardLoopWithFactory(
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
 	localPort, remotePort int,
+	logLevel string,
 ) error {
 	for {
 		select {
@@ -130,20 +132,47 @@ func StartPortForwardLoopWithFactory(
 		}
 
 		// PortForwarder作成
-		pf, err := factory.CreatePortForwarder(ctx, namespace, podName, localPort, remotePort)
+		pf, readyChan, err := factory.CreatePortForwarder(ctx, namespace, podName, localPort, remotePort)
 		if err != nil {
 			// エラー時は0.3秒待って再試行
 			time.Sleep(300 * time.Millisecond)
 			continue
 		}
 
-		// ForwardPorts実行（ブロッキング）
-		// エラーまたは切断時は下記のsleepの後に再試行される
-		_ = pf.ForwardPorts()
+		// ForwardPorts実行をgoroutineで起動
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- pf.ForwardPorts()
+		}()
+
+		// readyChanがcloseされるのを待つ（ポートフォワード成功）
+		select {
+		case <-readyChan:
+			// 成功ログ出力（infoまたはdebugレベル）
+			if logLevel == "info" || logLevel == "debug" {
+				fmt.Printf("port-forward ready: %s/%s -> pod/%s (127.0.0.1:%d -> %d)\n",
+					namespace, serviceName, podName, localPort, remotePort)
+			}
+		case <-ctx.Done():
+			return nil
+		case <-errChan:
+			// エラーまたは切断時は0.3秒待って再接続
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+
+		// ForwardPortsの終了を待つ
+		<-errChan
 
 		// contextキャンセル時は正常終了
 		if ctx.Err() != nil {
 			return nil
+		}
+
+		// 切断ログ出力（infoまたはdebugレベル）
+		if logLevel == "info" || logLevel == "debug" {
+			fmt.Printf("port-forward disconnected: %s/%s -> pod/%s (reconnecting...)\n",
+				namespace, serviceName, podName)
 		}
 
 		// エラーまたは切断時は0.3秒待って再接続

@@ -85,8 +85,6 @@ func TestUpCommand_FlagParsing(t *testing.T) {
 	}
 }
 
-
-
 func TestUpCommand_NoEditHosts(t *testing.T) {
 	tests := []struct {
 		name          string
