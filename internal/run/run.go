@@ -7,15 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
-	"github.com/usadamasa/kubectl-localmesh/internal/gcp"
 	"github.com/usadamasa/kubectl-localmesh/internal/hosts"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
-	"github.com/usadamasa/kubectl-localmesh/internal/pf"
+	"gopkg.in/yaml.v3"
 )
 
 func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts bool) error {
@@ -61,133 +57,19 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	var routes []envoy.Route
+	// Visitor の生成
+	visitor := NewRunVisitor(ctx, cfg, clientset, restConfig, logLevel)
 
+	// Visitorパターンで各サービスを処理
 	for _, svcDef := range cfg.Services {
 		svc := svcDef.Get()
-		var localPort int
-		var clusterName string
-		var routeType string
-		var routeProtocol string
-		var listenPort int
-
-		// type switchで型判別
-		switch s := svc.(type) {
-		case *config.TCPService:
-			// TCP + SSH Bastion経由の接続
-			bastion, ok := cfg.SSHBastions[s.SSHBastion]
-			if !ok {
-				return fmt.Errorf("ssh_bastion '%s' not found for service '%s'", s.SSHBastion, s.Host)
-			}
-
-			lp, err := pf.FreeLocalPort()
-			if err != nil {
-				return err
-			}
-			localPort = lp
-
-			clusterName = sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
-			routeType = "tcp"
-			listenPort = s.TargetPort
-
-			fmt.Printf(
-				"gcp-ssh: %-30s -> %s (instance=%s, zone=%s) -> %s:%d via 127.0.0.1:%d\n",
-				s.Host,
-				s.SSHBastion,
-				bastion.Instance,
-				bastion.Zone,
-				s.TargetHost,
-				s.TargetPort,
-				localPort,
-			)
-
-			// GCP SSH tunnelをgoroutineで起動（自動再接続）
-			go func(b *config.SSHBastion, local int, target string, targetPort int) {
-				if err := gcp.StartGCPSSHTunnel(
-					ctx,
-					b,
-					local,
-					target,
-					targetPort,
-					logLevel,
-				); err != nil {
-					// contextキャンセル以外のエラーをログ出力
-					if ctx.Err() == nil {
-						fmt.Fprintf(os.Stderr, "gcp-ssh tunnel error for %s: %v\n", b.Instance, err)
-					}
-				}
-			}(bastion, localPort, s.TargetHost, s.TargetPort)
-
-		case *config.KubernetesService:
-			// Kubernetes Service経由の接続
-			remotePort, err := k8s.ResolveServicePort(
-				ctx,
-				clientset,
-				s.Namespace,
-				s.Service,
-				s.PortName,
-				s.Port,
-			)
-			if err != nil {
-				return err
-			}
-
-			lp, err := pf.FreeLocalPort()
-			if err != nil {
-				return err
-			}
-			localPort = lp
-
-			clusterName = sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-			routeType = "http" // 非TCPサービスは "http" に統一
-			routeProtocol = s.Protocol
-			if routeProtocol == "" {
-				routeProtocol = "http" // デフォルトはHTTP/1.1
-			}
-
-			fmt.Printf(
-				"pf: %-30s -> %s/%s:%d via 127.0.0.1:%d\n",
-				s.Host,
-				s.Namespace,
-				s.Service,
-				remotePort,
-				localPort,
-			)
-
-			// port-forwardをgoroutineで起動（自動再接続）
-			go func(ns, svc string, local, remote int) {
-				if err := k8s.StartPortForwardLoop(
-					ctx,
-					restConfig,
-					clientset,
-					ns,
-					svc,
-					local,
-					remote,
-					logLevel,
-				); err != nil {
-					// contextキャンセル以外のエラーをログ出力
-					if ctx.Err() == nil {
-						fmt.Fprintf(os.Stderr, "port-forward error for %s/%s: %v\n", ns, svc, err)
-					}
-				}
-			}(s.Namespace, s.Service, localPort, remotePort)
-
-		default:
-			return fmt.Errorf("unknown service type: %T", s)
+		if err := svc.Accept(visitor); err != nil {
+			return err
 		}
-
-		routes = append(routes, envoy.Route{
-			Host:        svc.GetHost(),
-			LocalPort:   localPort,
-			ClusterName: clusterName,
-			Type:        routeType,
-			Protocol:    routeProtocol,
-			ListenPort:  listenPort,
-		})
 	}
 
-	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, routes)
+	// Envoy設定生成
+	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, visitor.GetServiceConfigs())
 	envoyPath := filepath.Join(tmpDir, "envoy.yaml")
 
 	b, err := yaml.Marshal(envoyCfg)
@@ -214,110 +96,6 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	// Envoy実行（contextキャンセル時に自動終了）
 	// port-forwardのgoroutineもcontextキャンセル時に自動終了する
 	return envoyCmd.Run()
-}
-
-func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath string) error {
-	var mockCfg *config.MockConfig
-	var err error
-
-	// モック設定の読み込み
-	if mockConfigPath != "" {
-		mockCfg, err = config.LoadMockConfig(mockConfigPath)
-		if err != nil {
-			return fmt.Errorf("failed to load mock config: %w", err)
-		}
-	}
-
-	// モックモードでない場合はKubernetes clientを初期化
-	var clientset *kubernetes.Clientset
-	if mockCfg == nil {
-		var k8sErr error
-		clientset, _, k8sErr = k8s.NewClient()
-		if k8sErr != nil {
-			return fmt.Errorf("failed to create kubernetes client: %w", k8sErr)
-		}
-	}
-
-	var routes []envoy.Route
-
-	for i, svcDef := range cfg.Services {
-		svc := svcDef.Get()
-
-		// type switchで型判別
-		switch s := svc.(type) {
-		case *config.KubernetesService:
-			var remotePort int
-
-			// モック設定が指定されている場合はモックから取得
-			if mockCfg != nil {
-				remotePort, err = findMockPort(mockCfg, s.Namespace, s.Service, s.PortName)
-				if err != nil {
-					return err
-				}
-			} else {
-				// モック設定がない場合は通常通りclient-goで解決
-				remotePort, err = k8s.ResolveServicePort(
-					ctx,
-					clientset,
-					s.Namespace,
-					s.Service,
-					s.PortName,
-					s.Port,
-				)
-				if err != nil {
-					return err
-				}
-			}
-
-			// ダミーのローカルポートを割り当て（実際にはport-forwardしない）
-			dummyLocalPort := 10000 + i
-
-			clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-
-			routes = append(routes, envoy.Route{
-				Host:        s.Host,
-				LocalPort:   dummyLocalPort,
-				ClusterName: clusterName,
-				Type:        "http",
-				Protocol:    s.Protocol,
-			})
-
-		case *config.TCPService:
-			// TCPサービスの場合（dump-envoy-configでは簡易処理）
-			dummyLocalPort := 10000 + i
-			clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
-
-			routes = append(routes, envoy.Route{
-				Host:        s.Host,
-				LocalPort:   dummyLocalPort,
-				ClusterName: clusterName,
-				Type:        "tcp",
-				ListenPort:  s.TargetPort,
-			})
-
-		default:
-			return fmt.Errorf("unknown service type: %T", s)
-		}
-	}
-
-	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, routes)
-
-	b, err := yaml.Marshal(envoyCfg)
-	if err != nil {
-		return err
-	}
-
-	fmt.Print(string(b))
-	return nil
-}
-
-func findMockPort(mockCfg *config.MockConfig, namespace, service, portName string) (int, error) {
-	for _, m := range mockCfg.Mocks {
-		if m.Namespace == namespace && m.Service == service && m.PortName == portName {
-			return m.ResolvedPort, nil
-		}
-	}
-	return 0, fmt.Errorf("mock config not found for %s/%s (port_name=%s)", namespace, service, portName)
 }
 
 func sanitize(s string) string {

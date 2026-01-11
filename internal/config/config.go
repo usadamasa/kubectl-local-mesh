@@ -25,6 +25,7 @@ type Service interface {
 	GetHost() string
 	GetKind() string
 	Validate(*Config) error
+	Accept(ServiceVisitor) error
 }
 
 // ServiceDefinition はタグ付きユニオン型のルート構造体
@@ -48,6 +49,7 @@ type TCPService struct {
 	SSHBastion string `yaml:"ssh_bastion"`
 	TargetHost string `yaml:"target_host"`
 	TargetPort int    `yaml:"target_port"`
+	ListenPort int    `yaml:"listen_port,omitempty"` // 省略時はTargetPortと同じ
 }
 
 // インターフェース実装
@@ -55,6 +57,16 @@ func (k *KubernetesService) GetHost() string { return k.Host }
 func (k *KubernetesService) GetKind() string { return "kubernetes" }
 func (t *TCPService) GetHost() string        { return t.Host }
 func (t *TCPService) GetKind() string        { return "tcp" }
+
+// Accept implements Service interface for Visitor pattern
+func (k *KubernetesService) Accept(visitor ServiceVisitor) error {
+	return visitor.VisitKubernetes(k)
+}
+
+// Accept implements Service interface for Visitor pattern
+func (t *TCPService) Accept(visitor ServiceVisitor) error {
+	return visitor.VisitTCP(t)
+}
 
 // Get は内部のServiceインターフェースを取得
 func (sd *ServiceDefinition) Get() Service {
@@ -173,6 +185,12 @@ func (t *TCPService) Validate(cfg *Config) error {
 	if t.TargetPort == 0 {
 		return fmt.Errorf("target_port is required for tcp service '%s'", t.Host)
 	}
+
+	// ListenPortが指定されていない場合はTargetPortを使用
+	if t.ListenPort == 0 {
+		t.ListenPort = t.TargetPort
+	}
+
 	return nil
 }
 
