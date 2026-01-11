@@ -287,7 +287,7 @@ func TestStartPortForwardLoop_ContextCancellation(t *testing.T) {
 
 	// StartPortForwardLoopを実行
 	// 既にキャンセル済みなので、すぐに終了するはず
-	err := StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090)
+	err := StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, "info")
 
 	// コンテキストキャンセル時はnilを返す
 	if err != nil {
@@ -321,7 +321,7 @@ func TestStartPortForwardLoop_NoPodRetry(t *testing.T) {
 	}
 
 	start := time.Now()
-	err = StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090)
+	err = StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, "info")
 	elapsed := time.Since(start)
 
 	// タイムアウトで正常終了
@@ -339,7 +339,7 @@ func TestStartPortForwardLoop_NoPodRetry(t *testing.T) {
 // mockPortForwarderFactory for testing
 type mockPortForwarderFactory struct {
 	createFunc func(ctx context.Context, namespace, podName string,
-		localPort, remotePort int) (PortForwarder, error)
+		localPort, remotePort int) (PortForwarder, chan struct{}, error)
 	callCount int
 }
 
@@ -347,12 +347,14 @@ func (m *mockPortForwarderFactory) CreatePortForwarder(
 	ctx context.Context,
 	namespace, podName string,
 	localPort, remotePort int,
-) (PortForwarder, error) {
+) (PortForwarder, chan struct{}, error) {
 	m.callCount++
 	if m.createFunc != nil {
 		return m.createFunc(ctx, namespace, podName, localPort, remotePort)
 	}
-	return nil, fmt.Errorf("mock error")
+	readyChan := make(chan struct{})
+	close(readyChan) // デフォルトでは即座にready
+	return nil, readyChan, fmt.Errorf("mock error")
 }
 
 // mockPortForwarder for testing
@@ -438,16 +440,18 @@ func TestStartPortForwardLoopWithFactory_Success(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, error) {
+			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
 			if podName != "test-pod" {
 				t.Errorf("expected pod name 'test-pod', got %q", podName)
 			}
-			return mockPF, nil
+			readyChan := make(chan struct{})
+			close(readyChan) // 即座にready
+			return mockPF, readyChan, nil
 		},
 	}
 
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090,
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
 	)
 
 	if err != nil {
@@ -475,24 +479,28 @@ func TestStartPortForwardLoopWithFactory_RetryOnError(t *testing.T) {
 	callCount := 0
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, error) {
+			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
 			callCount++
 			// 最初の2回はエラー、3回目は成功
 			if callCount < 3 {
-				return nil, fmt.Errorf("connection error %d", callCount)
+				readyChan := make(chan struct{})
+				close(readyChan)
+				return nil, readyChan, fmt.Errorf("connection error %d", callCount)
 			}
+			readyChan := make(chan struct{})
+			close(readyChan)
 			return &mockPortForwarder{
 				forwardFunc: func() error {
 					<-ctx.Done() // タイムアウトまでブロック
 					return nil
 				},
-			}, nil
+			}, readyChan, nil
 		},
 	}
 
 	start := time.Now()
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090,
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
 	)
 	elapsed := time.Since(start)
 
@@ -518,15 +526,17 @@ func TestStartPortForwardLoopWithFactory_ContextCancellation(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, error) {
+			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
 			// 即座にキャンセル
 			cancel()
-			return nil, fmt.Errorf("should not reach here")
+			readyChan := make(chan struct{})
+			close(readyChan)
+			return nil, readyChan, fmt.Errorf("should not reach here")
 		},
 	}
 
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090,
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
 	)
 
 	if err != nil {
@@ -561,15 +571,17 @@ func TestStartPortForwardLoopWithFactory_PodSelectionError(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, error) {
+			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
 			t.Error("factory should not be called when pod selection fails")
-			return nil, nil
+			readyChan := make(chan struct{})
+			close(readyChan)
+			return nil, readyChan, nil
 		},
 	}
 
 	start := time.Now()
 	err = StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090,
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
 	)
 	elapsed := time.Since(start)
 
@@ -616,7 +628,7 @@ func TestWebSocketPortForwarderFactory_CreatePortForwarder_InvalidConfig(t *test
 	factory := NewWebSocketPortForwarderFactory(config)
 	ctx := t.Context()
 
-	_, err := factory.CreatePortForwarder(ctx, "default", "test-pod", 8080, 9090)
+	_, _, err := factory.CreatePortForwarder(ctx, "default", "test-pod", 8080, 9090)
 
 	// URL parseエラーが発生するはず
 	if err == nil {
@@ -642,7 +654,7 @@ func TestWebSocketPortForwarderFactory_CreatePortForwarder_ContextCancellation(t
 	defer cancel()
 
 	// PortForwarder作成（実際の接続は行わない）
-	pf, err := factory.CreatePortForwarder(ctx, "default", "test-pod", 8080, 9090)
+	pf, readyChan, err := factory.CreatePortForwarder(ctx, "default", "test-pod", 8080, 9090)
 
 	// WebSocket RoundTripperの作成は成功するはず
 	if err != nil {
@@ -654,6 +666,10 @@ func TestWebSocketPortForwarderFactory_CreatePortForwarder_ContextCancellation(t
 
 	if pf == nil {
 		t.Fatal("expected non-nil PortForwarder")
+	}
+
+	if readyChan == nil {
+		t.Fatal("expected non-nil readyChan")
 	}
 
 	// ForwardPorts()は即座に終了するはず（接続前なのでエラーまたは即終了）
@@ -670,7 +686,9 @@ func TestStartPortForwardLoopWithFactory_ForwardPortsError(t *testing.T) {
 	forwardCallCount := 0
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, error) {
+			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			readyChan := make(chan struct{})
+			close(readyChan)
 			return &mockPortForwarder{
 				forwardFunc: func() error {
 					forwardCallCount++
@@ -681,13 +699,13 @@ func TestStartPortForwardLoopWithFactory_ForwardPortsError(t *testing.T) {
 					<-ctx.Done()
 					return nil
 				},
-			}, nil
+			}, readyChan, nil
 		},
 	}
 
 	start := time.Now()
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090,
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
 	)
 	elapsed := time.Since(start)
 

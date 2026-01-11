@@ -162,6 +162,7 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 					svc,
 					local,
 					remote,
+					logLevel,
 				); err != nil {
 					// contextキャンセル以外のエラーをログ出力
 					if ctx.Err() == nil {
