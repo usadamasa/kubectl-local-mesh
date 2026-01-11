@@ -15,6 +15,7 @@ jobs:
     needs:
       - build
       - yamllint
+      - snapshot
     if: failure()
     timeout-minutes: 10
     permissions: {}
@@ -61,3 +62,24 @@ jobs:
           level: "warning"
           yamllint_flags: "-c .yamllint.yaml ."
           fail_level: "error"
+
+  snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: aqua-installer
+        uses: ./.github/composites/aqua-installer
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25
+
+      - name: Build
+        run: task build
+
+      - name: Run snapshot tests
+        run: task test:snapshot

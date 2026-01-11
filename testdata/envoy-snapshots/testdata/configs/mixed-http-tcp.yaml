@@ -1,0 +1,23 @@
+listener_port: 80
+ssh_bastions:
+  primary:
+    instance: bastion-1
+    zone: asia-northeast1-a
+    project: test-project
+services:
+  - kind: kubernetes
+    host: api.localhost
+    namespace: default
+    service: api
+    port_name: http
+    protocol: http
+  - kind: tcp
+    host: db.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1
+    target_port: 5432
+  - kind: tcp
+    host: cache.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.2
+    target_port: 6379

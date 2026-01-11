@@ -23,3 +23,14 @@ tasks:
     desc: Format code
     cmds:
       - gofmt -w .
+
+  test:snapshot:
+    desc: Run snapshot tests for Envoy configuration
+    cmds:
+      - testdata/envoy-snapshots/scripts/run-snapshots.sh
+
+  test:update-snapshots:
+    desc: Update Envoy config snapshot files (use carefully!)
+    cmds:
+      - task build
+      - testdata/envoy-snapshots/scripts/update-snapshots.sh

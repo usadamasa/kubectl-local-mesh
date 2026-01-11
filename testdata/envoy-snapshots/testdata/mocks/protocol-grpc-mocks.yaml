@@ -1,0 +1,5 @@
+mocks:
+  - namespace: default
+    service: grpc-service
+    port_name: grpc
+    resolved_port: 9090

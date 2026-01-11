@@ -5,8 +5,8 @@ yaml-files:
 # https://yamllint.readthedocs.io/en/stable/configuration.html
 extends: default
 
-ignore-from-file:
-  - .gitignore
+ignore:
+  - 'testdata/envoy-snapshots/testdata/snapshots/*.yaml'
 
 rules:
   line-length: disable
