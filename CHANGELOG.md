@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.2](https://github.com/usadamasa/kubectl-localmesh/compare/v0.2.1...v0.2.2) - 2026-01-11
+### Other Changes
+- Refactor/switch kind by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/53
+- feat: add CLI-based snapshot testing for Envoy configuration by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/55
+
 ## [v0.2.1](https://github.com/usadamasa/kubectl-localmesh/compare/v0.2.0...v0.2.1) - 2026-01-11
 ### Bug Fixes 🐛
 - bugfix: suport http1 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/51
