@@ -61,15 +61,13 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	var routes []envoy.Route
+	var serviceConfigs []envoy.ServiceConfig
 
 	for _, svcDef := range cfg.Services {
 		svc := svcDef.Get()
 		var localPort int
 		var clusterName string
-		var routeType string
-		var routeProtocol string
-		var listenPort int
+		var builder interface{}
 
 		// type switchで型判別
 		switch s := svc.(type) {
@@ -85,10 +83,11 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 				return err
 			}
 			localPort = lp
-
 			clusterName = sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
-			routeType = "tcp"
-			listenPort = s.TargetPort
+
+			// TCPビルダーを構築（設定生成ロジックはビルダー内に隠蔽）
+			// ListenPortを使用（省略時はTargetPortと同じ）
+			builder = envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, s.SSHBastion, s.TargetHost, s.TargetPort)
 
 			fmt.Printf(
 				"gcp-ssh: %-30s -> %s (instance=%s, zone=%s) -> %s:%d via 127.0.0.1:%d\n",
@@ -137,13 +136,13 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 				return err
 			}
 			localPort = lp
-
 			clusterName = sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
-			routeType = "http" // 非TCPサービスは "http" に統一
-			routeProtocol = s.Protocol
-			if routeProtocol == "" {
-				routeProtocol = "http" // デフォルトはHTTP/1.1
-			}
+
+			// Kubernetesビルダーを構築（protocol分岐はビルダー内に隠蔽）
+			// メタデータも渡す（ログ・診断用）
+			builder = envoy.NewKubernetesServiceBuilder(
+				s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port,
+			)
 
 			fmt.Printf(
 				"pf: %-30s -> %s/%s:%d via 127.0.0.1:%d\n",
@@ -177,17 +176,15 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 			return fmt.Errorf("unknown service type: %T", s)
 		}
 
-		routes = append(routes, envoy.Route{
-			Host:        svc.GetHost(),
-			LocalPort:   localPort,
+		serviceConfigs = append(serviceConfigs, envoy.ServiceConfig{
+			Builder:     builder,
 			ClusterName: clusterName,
-			Type:        routeType,
-			Protocol:    routeProtocol,
-			ListenPort:  listenPort,
+			LocalPort:   localPort,
 		})
 	}
 
-	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, routes)
+	// ビルダーベースのBuildConfigを呼び出し
+	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, serviceConfigs)
 	envoyPath := filepath.Join(tmpDir, "envoy.yaml")
 
 	b, err := yaml.Marshal(envoyCfg)
@@ -238,7 +235,7 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 		}
 	}
 
-	var routes []envoy.Route
+	var serviceConfigs []envoy.ServiceConfig
 
 	for i, svcDef := range cfg.Services {
 		svc := svcDef.Get()
@@ -271,15 +268,16 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 
 			// ダミーのローカルポートを割り当て（実際にはport-forwardしない）
 			dummyLocalPort := 10000 + i
-
 			clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
-			routes = append(routes, envoy.Route{
-				Host:        s.Host,
-				LocalPort:   dummyLocalPort,
+			builder := envoy.NewKubernetesServiceBuilder(
+				s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port,
+			)
+
+			serviceConfigs = append(serviceConfigs, envoy.ServiceConfig{
+				Builder:     builder,
 				ClusterName: clusterName,
-				Type:        "http",
-				Protocol:    s.Protocol,
+				LocalPort:   dummyLocalPort,
 			})
 
 		case *config.TCPService:
@@ -287,12 +285,12 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 			dummyLocalPort := 10000 + i
 			clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
-			routes = append(routes, envoy.Route{
-				Host:        s.Host,
-				LocalPort:   dummyLocalPort,
+			builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, s.SSHBastion, s.TargetHost, s.TargetPort)
+
+			serviceConfigs = append(serviceConfigs, envoy.ServiceConfig{
+				Builder:     builder,
 				ClusterName: clusterName,
-				Type:        "tcp",
-				ListenPort:  s.TargetPort,
+				LocalPort:   dummyLocalPort,
 			})
 
 		default:
@@ -300,7 +298,7 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 		}
 	}
 
-	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, routes)
+	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, serviceConfigs)
 
 	b, err := yaml.Marshal(envoyCfg)
 	if err != nil {

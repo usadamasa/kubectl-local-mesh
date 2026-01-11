@@ -48,6 +48,7 @@ type TCPService struct {
 	SSHBastion string `yaml:"ssh_bastion"`
 	TargetHost string `yaml:"target_host"`
 	TargetPort int    `yaml:"target_port"`
+	ListenPort int    `yaml:"listen_port,omitempty"` // 省略時はTargetPortと同じ
 }
 
 // インターフェース実装
@@ -173,6 +174,12 @@ func (t *TCPService) Validate(cfg *Config) error {
 	if t.TargetPort == 0 {
 		return fmt.Errorf("target_port is required for tcp service '%s'", t.Host)
 	}
+
+	// ListenPortが指定されていない場合はTargetPortを使用
+	if t.ListenPort == 0 {
+		t.ListenPort = t.TargetPort
+	}
+
 	return nil
 }
 

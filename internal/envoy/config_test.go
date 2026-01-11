@@ -6,17 +6,19 @@ import (
 
 func TestBuildConfig_HTTPOnly(t *testing.T) {
 	// HTTP/gRPCのみの設定（既存の動作確認）
-	routes := []Route{
+	builder := NewKubernetesServiceBuilder(
+		"api.localhost", "http",
+		"default", "api", "http", 8080,
+	)
+	configs := []ServiceConfig{
 		{
-			Host:        "api.localhost",
-			LocalPort:   10001,
+			Builder:     builder,
 			ClusterName: "api_cluster",
-			Type:        "http",
-			Protocol:    "http",
+			LocalPort:   10001,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	// static_resourcesの存在確認
 	staticRes, ok := cfg["static_resources"].(map[string]any)
@@ -47,17 +49,19 @@ func TestBuildConfig_HTTPOnly(t *testing.T) {
 
 func TestBuildConfig_TCPOnly(t *testing.T) {
 	// TCPのみの設定
-	routes := []Route{
+	builder := NewTCPServiceBuilder(
+		"db.localhost", 5432,
+		"primary", "10.0.0.1", 5432,
+	)
+	configs := []ServiceConfig{
 		{
-			Host:        "db.localhost",
-			LocalPort:   10002,
+			Builder:     builder,
 			ClusterName: "db_cluster",
-			Type:        "tcp",
-			ListenPort:  5432, // DBポート
+			LocalPort:   10002,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -95,31 +99,34 @@ func TestBuildConfig_TCPOnly(t *testing.T) {
 
 func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 	// HTTP/gRPCとTCPの混在
-	routes := []Route{
+	configs := []ServiceConfig{
 		{
-			Host:        "api.localhost",
-			LocalPort:   10001,
+			Builder: NewKubernetesServiceBuilder(
+				"api.localhost", "http",
+				"default", "api", "http", 8080,
+			),
 			ClusterName: "api_cluster",
-			Type:        "http",
-			Protocol:    "http",
+			LocalPort:   10001,
 		},
 		{
-			Host:        "db.localhost",
-			LocalPort:   10002,
+			Builder: NewTCPServiceBuilder(
+				"db.localhost", 5432,
+				"primary", "10.0.0.1", 5432,
+			),
 			ClusterName: "db_cluster",
-			Type:        "tcp",
-			ListenPort:  5432,
+			LocalPort:   10002,
 		},
 		{
-			Host:        "cache.localhost",
-			LocalPort:   10003,
+			Builder: NewTCPServiceBuilder(
+				"cache.localhost", 6379,
+				"primary", "10.0.0.2", 6379,
+			),
 			ClusterName: "cache_cluster",
-			Type:        "tcp",
-			ListenPort:  6379,
+			LocalPort:   10003,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -148,25 +155,27 @@ func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 
 func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
 	// 同じポート番号を持つ複数のTCPサービス（エラーケース）
-	routes := []Route{
+	configs := []ServiceConfig{
 		{
-			Host:        "db1.localhost",
-			LocalPort:   10002,
+			Builder: NewTCPServiceBuilder(
+				"db1.localhost", 5432,
+				"primary", "10.0.0.1", 5432,
+			),
 			ClusterName: "db1_cluster",
-			Type:        "tcp",
-			ListenPort:  5432,
+			LocalPort:   10002,
 		},
 		{
-			Host:        "db2.localhost",
-			LocalPort:   10003,
+			Builder: NewTCPServiceBuilder(
+				"db2.localhost", 5432, // 重複
+				"primary", "10.0.0.2", 5432,
+			),
 			ClusterName: "db2_cluster",
-			Type:        "tcp",
-			ListenPort:  5432, // 重複
+			LocalPort:   10003,
 		},
 	}
 
 	// 現時点ではエラーチェックなし（将来的に追加する可能性）
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -186,17 +195,19 @@ func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
 
 func TestBuildConfig_HTTPProtocol(t *testing.T) {
 	// protocol: http → HTTP/1.1設定確認
-	routes := []Route{
+	builder := NewKubernetesServiceBuilder(
+		"api.localhost", "http",
+		"default", "api", "http", 8080,
+	)
+	configs := []ServiceConfig{
 		{
-			Host:        "api.localhost",
-			LocalPort:   10001,
+			Builder:     builder,
 			ClusterName: "api_cluster",
-			Type:        "http",
-			Protocol:    "http",
+			LocalPort:   10001,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -241,17 +252,19 @@ func TestBuildConfig_HTTPProtocol(t *testing.T) {
 
 func TestBuildConfig_HTTP2Protocol(t *testing.T) {
 	// protocol: http2 → HTTP/2設定確認
-	routes := []Route{
+	builder := NewKubernetesServiceBuilder(
+		"api.localhost", "http2",
+		"default", "api", "http", 8080,
+	)
+	configs := []ServiceConfig{
 		{
-			Host:        "api.localhost",
-			LocalPort:   10001,
+			Builder:     builder,
 			ClusterName: "api_cluster",
-			Type:        "http",
-			Protocol:    "http2",
+			LocalPort:   10001,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -296,17 +309,19 @@ func TestBuildConfig_HTTP2Protocol(t *testing.T) {
 
 func TestBuildConfig_gRPCProtocol(t *testing.T) {
 	// protocol: grpc → HTTP/2設定確認
-	routes := []Route{
+	builder := NewKubernetesServiceBuilder(
+		"grpc.localhost", "grpc",
+		"default", "grpc-service", "grpc", 9090,
+	)
+	configs := []ServiceConfig{
 		{
-			Host:        "grpc.localhost",
-			LocalPort:   10001,
+			Builder:     builder,
 			ClusterName: "grpc_cluster",
-			Type:        "http",
-			Protocol:    "grpc",
+			LocalPort:   10001,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
@@ -351,31 +366,34 @@ func TestBuildConfig_gRPCProtocol(t *testing.T) {
 
 func TestBuildConfig_MixedProtocols(t *testing.T) {
 	// http/http2/grpcの共存確認
-	routes := []Route{
+	configs := []ServiceConfig{
 		{
-			Host:        "api.localhost",
-			LocalPort:   10001,
+			Builder: NewKubernetesServiceBuilder(
+				"api.localhost", "http",
+				"default", "api", "http", 8080,
+			),
 			ClusterName: "api_cluster",
-			Type:        "http",
-			Protocol:    "http", // HTTP/1.1
+			LocalPort:   10001,
 		},
 		{
-			Host:        "api2.localhost",
-			LocalPort:   10002,
+			Builder: NewKubernetesServiceBuilder(
+				"api2.localhost", "http2",
+				"default", "api2", "http", 8080,
+			),
 			ClusterName: "api2_cluster",
-			Type:        "http",
-			Protocol:    "http2", // HTTP/2
+			LocalPort:   10002,
 		},
 		{
-			Host:        "grpc.localhost",
-			LocalPort:   10003,
+			Builder: NewKubernetesServiceBuilder(
+				"grpc.localhost", "grpc",
+				"default", "grpc-service", "grpc", 9090,
+			),
 			ClusterName: "grpc_cluster",
-			Type:        "http",
-			Protocol:    "grpc", // gRPC (HTTP/2)
+			LocalPort:   10003,
 		},
 	}
 
-	cfg := BuildConfig(80, routes)
+	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
 	if !ok {
