@@ -139,6 +139,18 @@ kubectl-localmesh固有の運用操作を提供します。
 
 詳細: `.claude/skills/kubectl-localmesh-operations/SKILL.md`
 
+#### `kubectl-localmesh-envoy-protocols` - Envoyプロトコル設定
+kubectl-localmeshにおけるEnvoy HTTPプロトコル設定の実装パターンとトラブルシューティングを提供します。
+
+**主な機能**:
+- HTTPプロトコルオプション（`http_protocol_options` vs `http2_protocol_options`）の理解
+- `protocol: http/http2/grpc`の使い分けガイド
+- サービス互換性の判断方法
+- プロトコルエラー（502 Bad Gateway、gRPC接続エラー）の診断と解決
+- 実装パターンとコード例
+
+詳細: `.claude/skills/kubectl-localmesh-envoy-protocols/SKILL.md`
+
 ### クイックスタート
 
 ```bash
