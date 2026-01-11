@@ -25,6 +25,7 @@ type Service interface {
 	GetHost() string
 	GetKind() string
 	Validate(*Config) error
+	Accept(ServiceVisitor) error
 }
 
 // ServiceDefinition はタグ付きユニオン型のルート構造体
@@ -56,6 +57,16 @@ func (k *KubernetesService) GetHost() string { return k.Host }
 func (k *KubernetesService) GetKind() string { return "kubernetes" }
 func (t *TCPService) GetHost() string        { return t.Host }
 func (t *TCPService) GetKind() string        { return "tcp" }
+
+// Accept implements Service interface for Visitor pattern
+func (k *KubernetesService) Accept(visitor ServiceVisitor) error {
+	return visitor.VisitKubernetes(k)
+}
+
+// Accept implements Service interface for Visitor pattern
+func (t *TCPService) Accept(visitor ServiceVisitor) error {
+	return visitor.VisitTCP(t)
+}
 
 // Get は内部のServiceインターフェースを取得
 func (sd *ServiceDefinition) Get() Service {
