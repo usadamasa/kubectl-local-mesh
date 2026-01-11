@@ -1,0 +1,5 @@
+mocks:
+  - namespace: default
+    service: api
+    port_name: http
+    resolved_port: 8080

@@ -1,0 +1,8 @@
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-service
+    port_name: grpc
+    protocol: grpc

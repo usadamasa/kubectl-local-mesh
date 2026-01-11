@@ -1,0 +1,17 @@
+listener_port: 80
+ssh_bastions:
+  primary:
+    instance: bastion-1
+    zone: asia-northeast1-a
+    project: test-project
+services:
+  - kind: tcp
+    host: db1.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1
+    target_port: 5432
+  - kind: tcp
+    host: db2.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.2
+    target_port: 5432

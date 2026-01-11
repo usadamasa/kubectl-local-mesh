@@ -1,0 +1,8 @@
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: api.localhost
+    namespace: default
+    service: api
+    port_name: http
+    protocol: http2
