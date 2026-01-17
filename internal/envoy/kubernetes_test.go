@@ -2,6 +2,8 @@ package envoy
 
 import (
 	"testing"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestKubernetesServiceBuilder_Build_HTTPRoute(t *testing.T) {
@@ -36,7 +38,7 @@ func TestKubernetesServiceBuilder_Build_WithOverwriteListenPorts(t *testing.T) {
 	builder := NewKubernetesServiceBuilder(
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
-		[]int{50051, 50052},
+		[]port.IndividualListenerPort{50051, 50052},
 	)
 
 	result := builder.Build("grpc_cluster", 10001)
@@ -58,13 +60,13 @@ func TestKubernetesServiceBuilder_Build_WithOverwriteListenPorts(t *testing.T) {
 	}
 
 	// 各リスナーのポート確認
-	expectedPorts := []int{50051, 50052}
+	expectedPorts := []port.IndividualListenerPort{50051, 50052}
 	for i, listener := range listenerComponents.Listeners {
 		address := listener["address"].(map[string]any)
 		socketAddr := address["socket_address"].(map[string]any)
-		port := socketAddr["port_value"].(int)
-		if port != expectedPorts[i] {
-			t.Errorf("expected listener %d port %d, got %d", i, expectedPorts[i], port)
+		portVal := socketAddr["port_value"].(int)
+		if portVal != int(expectedPorts[i]) {
+			t.Errorf("expected listener %d port %d, got %d", i, expectedPorts[i], portVal)
 		}
 	}
 }
@@ -74,7 +76,7 @@ func TestKubernetesServiceBuilder_Build_SingleListenPort(t *testing.T) {
 	builder := NewKubernetesServiceBuilder(
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
-		[]int{50051},
+		[]port.IndividualListenerPort{50051},
 	)
 
 	result := builder.Build("grpc_cluster", 10001)
@@ -104,7 +106,7 @@ func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPorts(t *testing
 	builder := NewKubernetesServiceBuilder(
 		"http.localhost", "http",
 		"default", "http-service", "http", 8080,
-		[]int{8080},
+		[]port.IndividualListenerPort{8080},
 	)
 
 	result := builder.Build("http_cluster", 10001)
@@ -134,7 +136,7 @@ func TestKubernetesServiceBuilder_Build_gRPC_WithOverwriteListenPorts(t *testing
 	builder := NewKubernetesServiceBuilder(
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
-		[]int{50051},
+		[]port.IndividualListenerPort{50051},
 	)
 
 	result := builder.Build("grpc_cluster", 10001)

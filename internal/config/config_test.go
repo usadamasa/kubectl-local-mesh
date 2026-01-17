@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestLoad_DefaultListenerPort(t *testing.T) {
@@ -28,7 +30,7 @@ services:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	expectedPort := 80
+	expectedPort := port.ListenerPort(80)
 	if cfg.ListenerPort != expectedPort {
 		t.Errorf("expected default listener_port %d, got %d", expectedPort, cfg.ListenerPort)
 	}
@@ -57,7 +59,7 @@ services:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	expectedPort := 8080
+	expectedPort := port.ListenerPort(8080)
 	if cfg.ListenerPort != expectedPort {
 		t.Errorf("expected listener_port %d, got %d", expectedPort, cfg.ListenerPort)
 	}
@@ -1044,13 +1046,13 @@ services:
 	if !ok {
 		t.Fatal("expected KubernetesService")
 	}
-	expectedPorts := []int{50051, 50052, 50053}
+	expectedPorts := []port.IndividualListenerPort{50051, 50052, 50053}
 	if len(k8sSvc.OverwriteListenPorts) != len(expectedPorts) {
 		t.Errorf("expected overwrite_listen_ports %v, got %v", expectedPorts, k8sSvc.OverwriteListenPorts)
 	}
-	for i, port := range expectedPorts {
-		if k8sSvc.OverwriteListenPorts[i] != port {
-			t.Errorf("expected overwrite_listen_ports[%d] = %d, got %d", i, port, k8sSvc.OverwriteListenPorts[i])
+	for i, p := range expectedPorts {
+		if k8sSvc.OverwriteListenPorts[i] != p {
+			t.Errorf("expected overwrite_listen_ports[%d] = %d, got %d", i, p, k8sSvc.OverwriteListenPorts[i])
 		}
 	}
 }
