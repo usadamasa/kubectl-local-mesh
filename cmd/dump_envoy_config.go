@@ -5,12 +5,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
-	"github.com/usadamasa/kubectl-localmesh/internal/run"
+	"github.com/usadamasa/kubectl-localmesh/internal/dump"
 )
 
 type dumpEnvoyConfigOptions struct {
-	configFile string
-	mockConfig string
+	configFile    string
+	mockConfig    string
+	outputMapping bool
 }
 
 var dumpEnvoyConfigOpts = &dumpEnvoyConfigOptions{}
@@ -46,6 +47,11 @@ func init() {
 		"mock-config", "",
 		"オフラインモード用のモック設定（クラスタ接続不要）",
 	)
+	dumpEnvoyConfigCmd.Flags().BoolVar(
+		&dumpEnvoyConfigOpts.outputMapping,
+		"output-mapping", false,
+		"Envoy設定の代わりにポートフォワードマッピングを出力",
+	)
 }
 
 func runDumpEnvoyConfig(cmd *cobra.Command, args []string) error {
@@ -64,5 +70,10 @@ func runDumpEnvoyConfig(cmd *cobra.Command, args []string) error {
 
 	ctx := cmd.Context()
 
-	return run.DumpEnvoyConfig(ctx, cfg, dumpEnvoyConfigOpts.mockConfig)
+	opts := dump.DumpOptions{
+		MockConfigPath: dumpEnvoyConfigOpts.mockConfig,
+		OutputMapping:  dumpEnvoyConfigOpts.outputMapping,
+	}
+
+	return dump.DumpEnvoyConfigWithOptions(ctx, cfg, opts)
 }

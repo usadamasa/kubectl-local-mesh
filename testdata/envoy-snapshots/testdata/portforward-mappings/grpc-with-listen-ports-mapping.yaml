@@ -1,0 +1,12 @@
+services:
+    - kind: kubernetes
+      host: grpc.localhost
+      protocol: grpc
+      namespace: default
+      service: grpc-svc
+      port_name: grpc
+      resolved_remote_port: 50051
+      assigned_local_port: 10000
+      assigned_listener_ports:
+        - 50051
+      envoy_cluster_name: default_grpc_svc_50051

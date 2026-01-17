@@ -1,0 +1,38 @@
+services:
+    - kind: kubernetes
+      host: grpc1.localhost
+      protocol: grpc
+      namespace: default
+      service: grpc1-svc
+      resolved_remote_port: 50051
+      assigned_local_port: 10000
+      assigned_listener_ports:
+        - 50051
+        - 50052
+      envoy_cluster_name: default_grpc1_svc_50051
+    - kind: kubernetes
+      host: grpc2.localhost
+      protocol: grpc
+      namespace: default
+      service: grpc2-svc
+      resolved_remote_port: 51051
+      assigned_local_port: 10001
+      assigned_listener_ports:
+        - 51051
+      envoy_cluster_name: default_grpc2_svc_51051
+    - kind: kubernetes
+      host: legacy-grpc.localhost
+      protocol: grpc
+      namespace: default
+      service: legacy-grpc-svc
+      resolved_remote_port: 9090
+      assigned_local_port: 10002
+      envoy_cluster_name: default_legacy_grpc_svc_9090
+    - kind: kubernetes
+      host: http.localhost
+      protocol: http
+      namespace: default
+      service: http-svc
+      resolved_remote_port: 8080
+      assigned_local_port: 10003
+      envoy_cluster_name: default_http_svc_8080

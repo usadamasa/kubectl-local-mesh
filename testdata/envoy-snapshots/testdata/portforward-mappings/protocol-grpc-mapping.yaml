@@ -1,0 +1,10 @@
+services:
+    - kind: kubernetes
+      host: grpc.localhost
+      protocol: grpc
+      namespace: default
+      service: grpc-service
+      port_name: grpc
+      resolved_remote_port: 9090
+      assigned_local_port: 10000
+      envoy_cluster_name: default_grpc_service_9090

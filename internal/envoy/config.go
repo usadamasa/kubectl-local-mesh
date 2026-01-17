@@ -4,9 +4,10 @@ import "github.com/usadamasa/kubectl-localmesh/internal/port"
 
 // ServiceConfig はビルダーとメタデータを保持
 type ServiceConfig struct {
-	Builder     interface{} // *KubernetesServiceBuilder または *TCPServiceBuilder
-	ClusterName string
-	LocalPort   int
+	Builder            interface{} // *KubernetesServiceBuilder または *TCPServiceBuilder
+	ClusterName        string
+	LocalPort          int
+	ResolvedRemotePort int // Kubernetesサービスの解決済みリモートポート（マッピング出力用）
 }
 
 // BuildConfig は ServiceConfig のリストから Envoy 設定を生成
