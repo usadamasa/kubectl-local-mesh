@@ -60,6 +60,7 @@ func (b *TCPServiceBuilder) Build(clusterName string, localPort int) TCPComponen
 				"port_value": int(b.ListenPort),
 			},
 		},
+		"enable_reuse_port": map[string]any{"value": false},
 		"filter_chains": []any{
 			map[string]any{
 				"filters": []any{

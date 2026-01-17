@@ -173,6 +173,7 @@ func (b *KubernetesServiceBuilder) buildIndividualListener(clusterName string, l
 				"port_value": int(listenPort),
 			},
 		},
+		"enable_reuse_port": map[string]any{"value": false},
 		"filter_chains": []any{
 			map[string]any{
 				"filters": []any{

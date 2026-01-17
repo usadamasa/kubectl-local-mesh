@@ -54,6 +54,7 @@ func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[st
 					"port_value": int(listenerPort),
 				},
 			},
+			"enable_reuse_port": map[string]any{"value": false},
 			"filter_chains": []any{
 				map[string]any{
 					"filters": []any{
@@ -95,6 +96,21 @@ func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[st
 		"static_resources": map[string]any{
 			"listeners": listeners,
 			"clusters":  clusters,
+		},
+		"overload_manager": map[string]any{
+			"refresh_interval": map[string]any{
+				"seconds": 0,
+				"nanos":   250000000,
+			},
+			"resource_monitors": []any{
+				map[string]any{
+					"name": "envoy.resource_monitors.global_downstream_max_connections",
+					"typed_config": map[string]any{
+						"@type":                             "type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig",
+						"max_active_downstream_connections": 5000,
+					},
+				},
+			},
 		},
 	}
 }
