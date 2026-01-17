@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.3.0](https://github.com/usadamasa/kubectl-localmesh/compare/v0.2.1...v0.3.0) - 2026-01-17
+### New Features 🎉
+- feat: support overwrite_listen_port by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/56
+- feat: ログレベル階層化とユーザーフレンドリーなサマリー出力を実装 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/59
+### Other Changes
+- Refactor/switch kind by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/53
+- feat: add CLI-based snapshot testing for Envoy configuration by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/55
+- refactor: ポート番号にセマンティック型を導入 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/57
+- refactor: dump/snapshotパッケージを分離して責務を明確化 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/58
+- feat: Envoy警告抑止とGCP SSH tunnel IAP明示指定を追加 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/60
+
 ## [v0.2.1](https://github.com/usadamasa/kubectl-localmesh/compare/v0.2.0...v0.2.1) - 2026-01-11
 ### Bug Fixes 🐛
 - bugfix: suport http1 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/51
