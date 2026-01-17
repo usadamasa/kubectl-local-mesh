@@ -1,21 +1,25 @@
 package envoy
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
+)
 
 // KubernetesServiceBuilder はKubernetes Service用のEnvoy設定ビルダー
 type KubernetesServiceBuilder struct {
 	Host                 string
-	Protocol             string // http|http2|grpc
-	OverwriteListenPorts []int  // 個別リスナーポート（省略時はHTTPリスナーに統合）
+	Protocol             string                        // http|http2|grpc
+	OverwriteListenPorts []port.IndividualListenerPort // 個別リスナーポート（省略時はHTTPリスナーに統合）
 	// メタデータ（ログ・診断用、Envoy設定生成には使用しない）
 	Namespace   string
 	ServiceName string
 	PortName    string
-	Port        int
+	Port        port.ServicePort
 }
 
 // NewKubernetesServiceBuilder はKubernetesServiceBuilderを生成
-func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, port int, listenPorts []int) *KubernetesServiceBuilder {
+func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, p port.ServicePort, listenPorts []port.IndividualListenerPort) *KubernetesServiceBuilder {
 	if protocol == "" {
 		protocol = "http" // デフォルトHTTP/1.1
 	}
@@ -26,7 +30,7 @@ func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portNam
 		Namespace:            namespace,
 		ServiceName:          serviceName,
 		PortName:             portName,
-		Port:                 port,
+		Port:                 p,
 	}
 }
 
@@ -120,7 +124,7 @@ func (b *KubernetesServiceBuilder) buildCluster(clusterName string, localPort in
 }
 
 // buildIndividualListener は個別リスナーを生成
-func (b *KubernetesServiceBuilder) buildIndividualListener(clusterName string, listenPort int, index int) map[string]any {
+func (b *KubernetesServiceBuilder) buildIndividualListener(clusterName string, listenPort port.IndividualListenerPort, index int) map[string]any {
 	listenerName := fmt.Sprintf("listener_%s_%d", clusterName, listenPort)
 
 	// HTTP connection manager設定
@@ -166,7 +170,7 @@ func (b *KubernetesServiceBuilder) buildIndividualListener(clusterName string, l
 		"address": map[string]any{
 			"socket_address": map[string]any{
 				"address":    "0.0.0.0",
-				"port_value": listenPort,
+				"port_value": int(listenPort),
 			},
 		},
 		"filter_chains": []any{

@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 type Config struct {
-	ListenerPort int                    `yaml:"listener_port"`
+	ListenerPort port.ListenerPort      `yaml:"listener_port"`
 	SSHBastions  map[string]*SSHBastion `yaml:"ssh_bastions,omitempty"`
 	Services     []ServiceDefinition    `yaml:"services"`
 }
@@ -35,22 +37,22 @@ type ServiceDefinition struct {
 
 // KubernetesService はKubernetes Service（HTTP/gRPC）を表現
 type KubernetesService struct {
-	Host                 string `yaml:"host"`
-	Namespace            string `yaml:"namespace"`
-	Service              string `yaml:"service"`
-	PortName             string `yaml:"port_name,omitempty"`
-	Port                 int    `yaml:"port,omitempty"`
-	Protocol             string `yaml:"protocol"`                         // http|http2|grpc
-	OverwriteListenPorts []int  `yaml:"overwrite_listen_ports,omitempty"` // 個別リスナーポート（指定時はHTTPリスナーを上書き）
+	Host                 string                        `yaml:"host"`
+	Namespace            string                        `yaml:"namespace"`
+	Service              string                        `yaml:"service"`
+	PortName             string                        `yaml:"port_name,omitempty"`
+	Port                 port.ServicePort              `yaml:"port,omitempty"`
+	Protocol             string                        `yaml:"protocol"`                         // http|http2|grpc
+	OverwriteListenPorts []port.IndividualListenerPort `yaml:"overwrite_listen_ports,omitempty"` // 個別リスナーポート（指定時はHTTPリスナーを上書き）
 }
 
 // TCPService はGCP SSH Bastion経由のTCP接続を表現
 type TCPService struct {
-	Host       string `yaml:"host"`
-	SSHBastion string `yaml:"ssh_bastion"`
-	TargetHost string `yaml:"target_host"`
-	TargetPort int    `yaml:"target_port"`
-	ListenPort int    `yaml:"listen_port,omitempty"` // 省略時はTargetPortと同じ
+	Host       string       `yaml:"host"`
+	SSHBastion string       `yaml:"ssh_bastion"`
+	TargetHost string       `yaml:"target_host"`
+	TargetPort port.TCPPort `yaml:"target_port"`
+	ListenPort port.TCPPort `yaml:"listen_port,omitempty"` // 省略時はTargetPortと同じ
 }
 
 // インターフェース実装
@@ -168,12 +170,14 @@ func (k *KubernetesService) Validate(cfg *Config) error {
 		return fmt.Errorf("protocol must be 'http', 'http2', or 'grpc' for kubernetes service '%s', got '%s'", k.Host, k.Protocol)
 	}
 
-	// OverwriteListenPortsのバリデーション
-	// 各ポートの範囲チェック（1-65535）
-	for _, port := range k.OverwriteListenPorts {
-		if port < 1 || port > 65535 {
-			return fmt.Errorf("overwrite_listen_ports must be between 1 and 65535 for kubernetes service '%s', got %d", k.Host, port)
-		}
+	// OverwriteListenPortsのバリデーション（共通関数使用）
+	if err := port.ValidatePorts(k.OverwriteListenPorts, "overwrite_listen_ports", k.Host); err != nil {
+		return err
+	}
+
+	// 特権ポート警告
+	for _, p := range k.OverwriteListenPorts {
+		port.WarnPrivilegedPort(int(p), "overwrite_listen_ports", k.Host)
 	}
 
 	return nil
@@ -192,14 +196,19 @@ func (t *TCPService) Validate(cfg *Config) error {
 	if t.TargetHost == "" {
 		return fmt.Errorf("target_host is required for tcp service '%s'", t.Host)
 	}
-	if t.TargetPort == 0 {
-		return fmt.Errorf("target_port is required for tcp service '%s'", t.Host)
+
+	// TargetPortのバリデーション（共通関数使用）
+	if err := port.ValidateRequiredPort(int(t.TargetPort), "target_port", t.Host); err != nil {
+		return err
 	}
 
 	// ListenPortが指定されていない場合はTargetPortを使用
 	if t.ListenPort == 0 {
 		t.ListenPort = t.TargetPort
 	}
+
+	// 特権ポート警告
+	port.WarnPrivilegedPort(int(t.ListenPort), "listen_port", t.Host)
 
 	return nil
 }
@@ -217,7 +226,15 @@ func Load(path string) (*Config, error) {
 	// デフォルト値設定
 	if cfg.ListenerPort == 0 {
 		cfg.ListenerPort = 80
+	} else if err := port.ValidatePort(int(cfg.ListenerPort), "listener_port", "config"); err != nil {
+		return nil, err
 	}
+
+	// 特権ポート警告（デフォルト値80は除外）
+	if cfg.ListenerPort != 80 {
+		port.WarnPrivilegedPort(int(cfg.ListenerPort), "listener_port", "config")
+	}
+
 	if len(cfg.Services) == 0 {
 		return nil, fmt.Errorf("no services configured in %s", path)
 	}
@@ -235,6 +252,22 @@ func Load(path string) (*Config, error) {
 		// 各サービスのバリデーション
 		if err := svc.Validate(&cfg); err != nil {
 			return nil, fmt.Errorf("invalid service entry at index %d: %w", i, err)
+		}
+	}
+
+	// ポート競合チェック
+	checker := port.NewPortConflictChecker()
+	checker.Register(int(cfg.ListenerPort), "listener_port")
+
+	for _, svcDef := range cfg.Services {
+		svc := svcDef.Get()
+		switch s := svc.(type) {
+		case *KubernetesService:
+			for _, p := range s.OverwriteListenPorts {
+				checker.Register(int(p), s.Host)
+			}
+		case *TCPService:
+			checker.Register(int(s.ListenPort), s.Host)
 		}
 	}
 
@@ -262,10 +295,10 @@ type MockConfig struct {
 }
 
 type MockService struct {
-	Namespace    string `yaml:"namespace"`
-	Service      string `yaml:"service"`
-	PortName     string `yaml:"port_name"`
-	ResolvedPort int    `yaml:"resolved_port"`
+	Namespace    string           `yaml:"namespace"`
+	Service      string           `yaml:"service"`
+	PortName     string           `yaml:"port_name"`
+	ResolvedPort port.ServicePort `yaml:"resolved_port"`
 }
 
 func LoadMockConfig(path string) (*MockConfig, error) {

@@ -12,7 +12,7 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/gcp"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
-	"github.com/usadamasa/kubectl-localmesh/internal/pf"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 // RunVisitor は Run() 処理のための Visitor 実装
@@ -54,18 +54,18 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 		s.Namespace,
 		s.Service,
 		s.PortName,
-		s.Port,
+		int(s.Port),
 	)
 	if err != nil {
 		return err
 	}
 
 	// ローカルポート割り当て
-	lp, err := pf.FreeLocalPort()
+	lp, err := port.FreeLocalPort()
 	if err != nil {
 		return err
 	}
-	localPort := lp
+	localPort := int(lp)
 	clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
 	// ビルダー構築
@@ -119,11 +119,11 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 	}
 
 	// ローカルポート割り当て
-	lp, err := pf.FreeLocalPort()
+	lp, err := port.FreeLocalPort()
 	if err != nil {
 		return err
 	}
-	localPort := lp
+	localPort := int(lp)
 	clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
 	// ビルダー構築
@@ -154,7 +154,7 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 				fmt.Fprintf(os.Stderr, "gcp-ssh tunnel error for %s: %v\n", b.Instance, err)
 			}
 		}
-	}(bastion, localPort, s.TargetHost, s.TargetPort)
+	}(bastion, localPort, s.TargetHost, int(s.TargetPort))
 
 	// ServiceConfig を保存
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{
@@ -215,7 +215,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 			s.Namespace,
 			s.Service,
 			s.PortName,
-			s.Port,
+			int(s.Port),
 		)
 		if err != nil {
 			return err

@@ -1,5 +1,7 @@
 package envoy
 
+import "github.com/usadamasa/kubectl-localmesh/internal/port"
+
 // ServiceConfig はビルダーとメタデータを保持
 type ServiceConfig struct {
 	Builder     interface{} // *KubernetesServiceBuilder または *TCPServiceBuilder
@@ -8,7 +10,7 @@ type ServiceConfig struct {
 }
 
 // BuildConfig は ServiceConfig のリストから Envoy 設定を生成
-func BuildConfig(listenerPort int, configs []ServiceConfig) map[string]any {
+func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[string]any {
 	var clusters []any
 	var httpRoutes []any
 	var tcpListeners []any
@@ -48,7 +50,7 @@ func BuildConfig(listenerPort int, configs []ServiceConfig) map[string]any {
 			"address": map[string]any{
 				"socket_address": map[string]any{
 					"address":    "0.0.0.0",
-					"port_value": listenerPort,
+					"port_value": int(listenerPort),
 				},
 			},
 			"filter_chains": []any{

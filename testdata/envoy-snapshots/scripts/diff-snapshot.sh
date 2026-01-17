@@ -18,8 +18,8 @@ KUBECTL_LOCALMESH="$PROJECT_ROOT/bin/kubectl-localmesh"
 ACTUAL=$(mktemp)
 trap "rm -f $ACTUAL" EXIT
 
-# dump-envoy-configで実際の出力を生成
-"$KUBECTL_LOCALMESH" dump-envoy-config -f "$CONFIG" --mock-config "$MOCK" > "$ACTUAL" 2>&1
+# dump-envoy-configで実際の出力を生成（stdoutのみ、警告はstderrに出力される）
+"$KUBECTL_LOCALMESH" dump-envoy-config -f "$CONFIG" --mock-config "$MOCK" > "$ACTUAL"
 
 # 差分チェック
 if diff -u "$SNAPSHOT" "$ACTUAL" > /dev/null; then

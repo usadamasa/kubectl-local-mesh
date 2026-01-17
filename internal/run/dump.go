@@ -61,7 +61,7 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 func findMockPort(mockCfg *config.MockConfig, namespace, service, portName string) (int, error) {
 	for _, m := range mockCfg.Mocks {
 		if m.Namespace == namespace && m.Service == service && m.PortName == portName {
-			return m.ResolvedPort, nil
+			return int(m.ResolvedPort), nil
 		}
 	}
 	return 0, fmt.Errorf("mock config not found for %s/%s (port_name=%s)", namespace, service, portName)

@@ -1,17 +1,19 @@
 package envoy
 
+import "github.com/usadamasa/kubectl-localmesh/internal/port"
+
 // TCPServiceBuilder はTCP Service用のEnvoy設定ビルダー
 type TCPServiceBuilder struct {
 	Host       string
-	ListenPort int // TCPリスナーの独立ポート
+	ListenPort port.TCPPort // TCPリスナーの独立ポート
 	// メタデータ（ログ・診断用、Envoy設定生成には使用しない）
 	SSHBastion string
 	TargetHost string
-	TargetPort int
+	TargetPort port.TCPPort
 }
 
 // NewTCPServiceBuilder はTCPServiceBuilderを生成
-func NewTCPServiceBuilder(host string, listenPort int, sshBastion, targetHost string, targetPort int) *TCPServiceBuilder {
+func NewTCPServiceBuilder(host string, listenPort port.TCPPort, sshBastion, targetHost string, targetPort port.TCPPort) *TCPServiceBuilder {
 	return &TCPServiceBuilder{
 		Host:       host,
 		ListenPort: listenPort,
@@ -55,7 +57,7 @@ func (b *TCPServiceBuilder) Build(clusterName string, localPort int) TCPComponen
 		"address": map[string]any{
 			"socket_address": map[string]any{
 				"address":    "0.0.0.0",
-				"port_value": b.ListenPort,
+				"port_value": int(b.ListenPort),
 			},
 		},
 		"filter_chains": []any{
