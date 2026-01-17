@@ -13,6 +13,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/log"
 )
 
 // PortForwarder forwards ports from local to remote pod.
@@ -98,11 +100,11 @@ func StartPortForwardLoop(
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
 	localPort, remotePort int,
-	logLevel string,
+	logger *log.Logger,
 ) error {
 	factory := NewWebSocketPortForwarderFactory(config)
 	return StartPortForwardLoopWithFactory(
-		ctx, factory, clientset, namespace, serviceName, localPort, remotePort, logLevel,
+		ctx, factory, clientset, namespace, serviceName, localPort, remotePort, logger,
 	)
 }
 
@@ -114,7 +116,7 @@ func StartPortForwardLoopWithFactory(
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
 	localPort, remotePort int,
-	logLevel string,
+	logger *log.Logger,
 ) error {
 	for {
 		select {
@@ -148,11 +150,9 @@ func StartPortForwardLoopWithFactory(
 		// readyChanがcloseされるのを待つ（ポートフォワード成功）
 		select {
 		case <-readyChan:
-			// 成功ログ出力（infoまたはdebugレベル）
-			if logLevel == "info" || logLevel == "debug" {
-				fmt.Printf("port-forward ready: %s/%s -> pod/%s (127.0.0.1:%d -> %d)\n",
-					namespace, serviceName, podName, localPort, remotePort)
-			}
+			// 成功ログ出力（debugレベル）
+			logger.Debugf("port-forward ready: %s/%s -> pod/%s (127.0.0.1:%d -> %d)",
+				namespace, serviceName, podName, localPort, remotePort)
 		case <-ctx.Done():
 			return nil
 		case <-errChan:
@@ -169,11 +169,9 @@ func StartPortForwardLoopWithFactory(
 			return nil
 		}
 
-		// 切断ログ出力（infoまたはdebugレベル）
-		if logLevel == "info" || logLevel == "debug" {
-			fmt.Printf("port-forward disconnected: %s/%s -> pod/%s (reconnecting...)\n",
-				namespace, serviceName, podName)
-		}
+		// 切断ログ出力（debugレベル）
+		logger.Debugf("port-forward disconnected: %s/%s -> pod/%s (reconnecting...)",
+			namespace, serviceName, podName)
 
 		// エラーまたは切断時は0.3秒待って再接続
 		time.Sleep(300 * time.Millisecond)

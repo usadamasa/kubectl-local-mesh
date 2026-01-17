@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
+	"github.com/usadamasa/kubectl-localmesh/internal/log"
 )
 
 func TestStartGCPSSHTunnel_BasicFlow(t *testing.T) {
@@ -26,7 +27,7 @@ func TestStartGCPSSHTunnel_BasicFlow(t *testing.T) {
 
 	// テスト用のモックを使用する予定
 	// 現時点では実装がないため、関数が存在することだけを確認
-	err := StartGCPSSHTunnel(ctx, bastion, localPort, targetHost, targetPort, "info")
+	err := StartGCPSSHTunnel(ctx, bastion, localPort, targetHost, targetPort, log.New("info"))
 
 	// contextがキャンセルされた場合はnilが返ることを期待
 	if err != nil && ctx.Err() == nil {
@@ -45,7 +46,7 @@ func TestStartGCPSSHTunnel_InvalidBastion(t *testing.T) {
 		Project:  "test-project",
 	}
 
-	err := StartGCPSSHTunnel(ctx, bastion, 10000, "10.0.0.1", 5432, "info")
+	err := StartGCPSSHTunnel(ctx, bastion, 10000, "10.0.0.1", 5432, log.New("info"))
 
 	if err == nil {
 		t.Error("expected error for empty instance name, got nil")
@@ -64,13 +65,13 @@ func TestStartGCPSSHTunnel_InvalidPorts(t *testing.T) {
 	}
 
 	// localPort が0
-	err := StartGCPSSHTunnel(ctx, bastion, 0, "10.0.0.1", 5432, "info")
+	err := StartGCPSSHTunnel(ctx, bastion, 0, "10.0.0.1", 5432, log.New("info"))
 	if err == nil {
 		t.Error("expected error for invalid local port, got nil")
 	}
 
 	// targetPort が0
-	err = StartGCPSSHTunnel(ctx, bastion, 10000, "10.0.0.1", 0, "info")
+	err = StartGCPSSHTunnel(ctx, bastion, 10000, "10.0.0.1", 0, log.New("info"))
 	if err == nil {
 		t.Error("expected error for invalid target port, got nil")
 	}
@@ -87,7 +88,7 @@ func TestStartGCPSSHTunnel_InvalidTargetHost(t *testing.T) {
 		Project:  "test-project",
 	}
 
-	err := StartGCPSSHTunnel(ctx, bastion, 10000, "", 5432, "info")
+	err := StartGCPSSHTunnel(ctx, bastion, 10000, "", 5432, log.New("info"))
 	if err == nil {
 		t.Error("expected error for empty target host, got nil")
 	}

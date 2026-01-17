@@ -11,6 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/log"
 )
 
 func TestSelectPodForService_ReadyPod(t *testing.T) {
@@ -287,7 +289,7 @@ func TestStartPortForwardLoop_ContextCancellation(t *testing.T) {
 
 	// StartPortForwardLoopを実行
 	// 既にキャンセル済みなので、すぐに終了するはず
-	err := StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, "info")
+	err := StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, log.New("info"))
 
 	// コンテキストキャンセル時はnilを返す
 	if err != nil {
@@ -321,7 +323,7 @@ func TestStartPortForwardLoop_NoPodRetry(t *testing.T) {
 	}
 
 	start := time.Now()
-	err = StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, "info")
+	err = StartPortForwardLoop(ctx, nil, clientset, "default", "test-svc", 8080, 9090, log.New("info"))
 	elapsed := time.Since(start)
 
 	// タイムアウトで正常終了
@@ -451,7 +453,7 @@ func TestStartPortForwardLoopWithFactory_Success(t *testing.T) {
 	}
 
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, log.New("info"),
 	)
 
 	if err != nil {
@@ -500,7 +502,7 @@ func TestStartPortForwardLoopWithFactory_RetryOnError(t *testing.T) {
 
 	start := time.Now()
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, log.New("info"),
 	)
 	elapsed := time.Since(start)
 
@@ -536,7 +538,7 @@ func TestStartPortForwardLoopWithFactory_ContextCancellation(t *testing.T) {
 	}
 
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, log.New("info"),
 	)
 
 	if err != nil {
@@ -581,7 +583,7 @@ func TestStartPortForwardLoopWithFactory_PodSelectionError(t *testing.T) {
 
 	start := time.Now()
 	err = StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, log.New("info"),
 	)
 	elapsed := time.Since(start)
 
@@ -705,7 +707,7 @@ func TestStartPortForwardLoopWithFactory_ForwardPortsError(t *testing.T) {
 
 	start := time.Now()
 	err := StartPortForwardLoopWithFactory(
-		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, "info",
+		ctx, mockFactory, clientset, "default", "test-svc", 8080, 9090, log.New("info"),
 	)
 	elapsed := time.Since(start)
 

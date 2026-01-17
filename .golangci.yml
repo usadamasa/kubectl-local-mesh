@@ -1,0 +1,53 @@
+version: "2"
+
+linters:
+  enable:
+    - forbidigo
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: '^fmt\.Print.*$'
+          msg: "use internal/log.Logger instead of fmt.Print* for console output"
+        - pattern: '^fmt\.Fprint.*\(os\.Stdout'
+          msg: "use internal/log.Logger instead of fmt.Fprint* to os.Stdout"
+      analyze-types: true
+      exclude-godoc-examples: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-rules:
+    # テストファイルでは許可
+    - path: _test\.go
+      linters:
+        - forbidigo
+    # main.goでは許可（CLIエントリポイント）
+    - path: main\.go
+      linters:
+        - forbidigo
+    # cmd/パッケージでは許可（CLI初期化）
+    - path: cmd/
+      linters:
+        - forbidigo
+    # log/パッケージでは許可（ログ実装自体）
+    - path: internal/log/
+      linters:
+        - forbidigo
+    # dump/パッケージでは許可（設定ダンプ出力）
+    - path: internal/dump/.*\.go
+      linters:
+        - forbidigo
+
+run:
+  timeout: 5m
