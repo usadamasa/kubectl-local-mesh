@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
+	"github.com/usadamasa/kubectl-localmesh/internal/log"
 )
 
 // StartGCPSSHTunnel はGCP Compute Instance経由でSSH tunnelを確立し、
@@ -20,7 +21,7 @@ func StartGCPSSHTunnel(
 	localPort int,
 	targetHost string,
 	targetPort int,
-	logLevel string,
+	logger *log.Logger,
 ) error {
 	// パラメータのバリデーション
 	if bastion == nil {
@@ -51,16 +52,18 @@ func StartGCPSSHTunnel(
 		}
 
 		// SSH tunnel確立を試行
-		err := startSingleSSHTunnel(ctx, bastion, localPort, targetHost, targetPort, logLevel)
+		err := startSingleSSHTunnel(ctx, bastion, localPort, targetHost, targetPort, logger)
 
 		// contextキャンセル時は正常終了
 		if ctx.Err() != nil {
 			return nil
 		}
 
-		// エラーは自動再接続で処理されるため、ここではログ出力のみ
-		// （将来的にはログレベルに応じて出力）
-		_ = err
+		// エラーは自動再接続で処理されるため、ここではdebugログ出力のみ
+		if err != nil {
+			logger.Debugf("SSH tunnel disconnected: %s -> %s:%d (reconnecting...): %v",
+				bastion.Instance, targetHost, targetPort, err)
+		}
 
 		// 300ms待機後に再接続
 		time.Sleep(300 * time.Millisecond)
@@ -97,7 +100,7 @@ func startSingleSSHTunnel(
 	localPort int,
 	targetHost string,
 	targetPort int,
-	logLevel string,
+	logger *log.Logger,
 ) error {
 	// 1. gcloudコマンドのパスを取得
 	gcloudPath, err := exec.LookPath("gcloud")
@@ -112,7 +115,7 @@ func startSingleSSHTunnel(
 	cmd := exec.CommandContext(ctx, gcloudPath, args...)
 
 	// 4. 標準出力/エラー出力の処理（logLevelで制御）
-	if logLevel == "debug" {
+	if logger.ShouldLogDebug() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {

@@ -11,10 +11,13 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/hosts"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
+	"github.com/usadamasa/kubectl-localmesh/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
 func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts bool) error {
+	// Logger初期化
+	logger := log.New(logLevel)
 	// Kubernetes client初期化
 	clientset, restConfig, err := k8s.NewClient()
 	if err != nil {
@@ -39,14 +42,14 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 		if err := hosts.AddEntries(hostnames); err != nil {
 			return fmt.Errorf("failed to update /etc/hosts: %w", err)
 		}
-		fmt.Println("/etc/hosts updated successfully")
+		logger.Debug("/etc/hosts updated successfully")
 
 		// 終了時にクリーンアップ
 		defer func() {
 			if err := hosts.RemoveEntries(); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: failed to clean up /etc/hosts: %v\n", err)
 			} else {
-				fmt.Println("/etc/hosts cleaned up")
+				logger.Debug("/etc/hosts cleaned up")
 			}
 		}()
 	}
@@ -58,7 +61,7 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Visitor の生成
-	visitor := NewRunVisitor(ctx, cfg, clientset, restConfig, logLevel)
+	visitor := NewRunVisitor(ctx, cfg, clientset, restConfig, logger)
 
 	// Visitorパターンで各サービスを処理
 	for _, svcDef := range cfg.Services {
@@ -80,15 +83,18 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 		return err
 	}
 
-	fmt.Println()
-	fmt.Printf("envoy config: %s\n", envoyPath)
-	fmt.Printf("listen: 0.0.0.0:%d\n\n", cfg.ListenerPort)
+	logger.Debugf("envoy config: %s", envoyPath)
+	logger.Debugf("listen: 0.0.0.0:%d", cfg.ListenerPort)
+
+	// サマリー出力
+	summary := log.GenerateSummary(visitor.GetServiceSummaries(), int(cfg.ListenerPort))
+	logger.Info(summary)
 
 	envoyCmd := exec.CommandContext(
 		ctx,
 		"envoy",
 		"-c", envoyPath,
-		"-l", logLevel,
+		"-l", logger.EnvoyLevel(),
 	)
 	envoyCmd.Stdout = os.Stdout
 	envoyCmd.Stderr = os.Stderr

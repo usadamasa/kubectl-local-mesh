@@ -66,7 +66,7 @@ func DumpEnvoyConfigWithOptions(ctx context.Context, cfg *config.Config, opts Du
 		if err != nil {
 			return err
 		}
-		fmt.Print(string(b))
+		fmt.Print(string(b)) //nolint:forbidigo // CLIダンプ出力として意図的に使用
 		return nil
 	}
 
@@ -78,6 +78,6 @@ func DumpEnvoyConfigWithOptions(ctx context.Context, cfg *config.Config, opts Du
 		return err
 	}
 
-	fmt.Print(string(b))
+	fmt.Print(string(b)) //nolint:forbidigo // CLIダンプ出力として意図的に使用
 	return nil
 }

@@ -95,6 +95,11 @@ DB (Cloud SQL等、Private IP)
    - Envoyプロセスの起動・監視
    - クリーンアップ処理
 
+9. **log** (`internal/log/`)
+   - ログレベル階層化（warn/info/debug）
+   - ユーザーフレンドリーなサマリー出力
+   - `Logger`型によるログ出力の抽象化
+
 ## 開発ワークフロー
 
 このプロジェクトでは、開発タスクの実行に[Task](https://taskfile.dev)を使用します。
@@ -150,6 +155,18 @@ kubectl-localmeshにおけるEnvoy HTTPプロトコル設定の実装パター�
 - 実装パターンとコード例
 
 詳細: `.claude/skills/kubectl-localmesh-envoy-protocols/SKILL.md`
+
+#### `kubectl-localmesh-logging-guide` - ログ設計ガイド
+kubectl-localmeshにおけるログレベル設計とユーザーフレンドリーな出力のガイドラインを提供します。
+
+**主な機能**:
+- ログレベル階層（warn/info/debug）の設計
+- 起動サマリーの見方
+- `internal/log.Logger`の使用パターン
+- トラブルシューティング例
+- forbidigo lintルールの説明
+
+詳細: `.claude/skills/kubectl-localmesh-logging-guide/SKILL.md`
 
 ### クイックスタート
 
