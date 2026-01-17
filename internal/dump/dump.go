@@ -1,4 +1,4 @@
-package run
+package dump
 
 import (
 	"context"
@@ -10,15 +10,26 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
+	"github.com/usadamasa/kubectl-localmesh/internal/snapshot"
 )
 
+// DumpOptions はダンプコマンドのオプション
+type DumpOptions struct {
+	MockConfigPath string
+	OutputMapping  bool
+}
+
 func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath string) error {
+	return DumpEnvoyConfigWithOptions(ctx, cfg, DumpOptions{MockConfigPath: mockConfigPath})
+}
+
+func DumpEnvoyConfigWithOptions(ctx context.Context, cfg *config.Config, opts DumpOptions) error {
 	var mockCfg *config.MockConfig
 	var err error
 
 	// モック設定の読み込み
-	if mockConfigPath != "" {
-		mockCfg, err = config.LoadMockConfig(mockConfigPath)
+	if opts.MockConfigPath != "" {
+		mockCfg, err = config.LoadMockConfig(opts.MockConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to load mock config: %w", err)
 		}
@@ -46,8 +57,21 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 		}
 	}
 
-	// Envoy設定生成
-	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, visitor.GetServiceConfigs())
+	serviceConfigs := visitor.GetServiceConfigs()
+
+	// マッピング出力モード
+	if opts.OutputMapping {
+		mappings := snapshot.BuildMappings(serviceConfigs)
+		b, err := yaml.Marshal(mappings)
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(b))
+		return nil
+	}
+
+	// Envoy設定生成（デフォルト）
+	envoyCfg := envoy.BuildConfig(cfg.ListenerPort, serviceConfigs)
 
 	b, err := yaml.Marshal(envoyCfg)
 	if err != nil {
@@ -56,13 +80,4 @@ func DumpEnvoyConfig(ctx context.Context, cfg *config.Config, mockConfigPath str
 
 	fmt.Print(string(b))
 	return nil
-}
-
-func findMockPort(mockCfg *config.MockConfig, namespace, service, portName string) (int, error) {
-	for _, m := range mockCfg.Mocks {
-		if m.Namespace == namespace && m.Service == service && m.PortName == portName {
-			return int(m.ResolvedPort), nil
-		}
-	}
-	return 0, fmt.Errorf("mock config not found for %s/%s (port_name=%s)", namespace, service, portName)
 }
