@@ -13,13 +13,24 @@ func BuildConfig(listenerPort int, configs []ServiceConfig) map[string]any {
 	var httpRoutes []any
 	var tcpListeners []any
 
+	var individualListeners []any
+
 	for _, cfg := range configs {
 		// type switchで各ビルダーを処理
 		switch builder := cfg.Builder.(type) {
 		case *KubernetesServiceBuilder:
-			components := builder.Build(cfg.ClusterName, cfg.LocalPort)
-			clusters = append(clusters, components.Cluster)
-			httpRoutes = append(httpRoutes, components.Route)
+			result := builder.Build(cfg.ClusterName, cfg.LocalPort)
+			// 戻り値の型によって処理を分岐
+			switch components := result.(type) {
+			case HTTPComponents:
+				clusters = append(clusters, components.Cluster)
+				httpRoutes = append(httpRoutes, components.Route)
+			case IndividualListenerComponents:
+				clusters = append(clusters, components.Cluster)
+				for _, listener := range components.Listeners {
+					individualListeners = append(individualListeners, listener)
+				}
+			}
 
 		case *TCPServiceBuilder:
 			components := builder.Build(cfg.ClusterName, cfg.LocalPort)
@@ -70,6 +81,9 @@ func BuildConfig(listenerPort int, configs []ServiceConfig) map[string]any {
 		}
 		listeners = append(listeners, httpListener)
 	}
+
+	// 個別リスナーを追加（OverwriteListenPortsが指定されたサービス用）
+	listeners = append(listeners, individualListeners...)
 
 	// TCPリスナーを追加
 	listeners = append(listeners, tcpListeners...)

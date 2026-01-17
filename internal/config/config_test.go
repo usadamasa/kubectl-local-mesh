@@ -973,3 +973,312 @@ listener_port: 80
 		t.Errorf("expected error containing 'no services configured', got '%s'", err.Error())
 	}
 }
+
+// ========== OverwriteListenPorts関連テスト ==========
+
+func TestLoad_KubernetesService_WithOverwriteListenPorts_GRPC(t *testing.T) {
+	// gRPCサービスでoverwrite_listen_portsを指定（正常系）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    port_name: grpc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if len(cfg.Services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(cfg.Services))
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	if len(k8sSvc.OverwriteListenPorts) != 1 || k8sSvc.OverwriteListenPorts[0] != 50051 {
+		t.Errorf("expected overwrite_listen_ports [50051], got %v", k8sSvc.OverwriteListenPorts)
+	}
+}
+
+func TestLoad_KubernetesService_WithOverwriteListenPorts_Multiple(t *testing.T) {
+	// gRPCサービスで複数のoverwrite_listen_portsを指定（正常系）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051
+      - 50052
+      - 50053
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	expectedPorts := []int{50051, 50052, 50053}
+	if len(k8sSvc.OverwriteListenPorts) != len(expectedPorts) {
+		t.Errorf("expected overwrite_listen_ports %v, got %v", expectedPorts, k8sSvc.OverwriteListenPorts)
+	}
+	for i, port := range expectedPorts {
+		if k8sSvc.OverwriteListenPorts[i] != port {
+			t.Errorf("expected overwrite_listen_ports[%d] = %d, got %d", i, port, k8sSvc.OverwriteListenPorts[i])
+		}
+	}
+}
+
+func TestLoad_KubernetesService_WithOverwriteListenPorts_HTTP2(t *testing.T) {
+	// http2サービスでoverwrite_listen_portsを指定（正常系）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: http2.localhost
+    namespace: default
+    service: http2-svc
+    protocol: http2
+    overwrite_listen_ports:
+      - 8443
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	if len(k8sSvc.OverwriteListenPorts) != 1 || k8sSvc.OverwriteListenPorts[0] != 8443 {
+		t.Errorf("expected overwrite_listen_ports [8443], got %v", k8sSvc.OverwriteListenPorts)
+	}
+}
+
+func TestLoad_KubernetesService_WithOverwriteListenPorts_HTTP(t *testing.T) {
+	// httpサービスでoverwrite_listen_portsを指定（正常系）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: http.localhost
+    namespace: default
+    service: http-svc
+    protocol: http
+    overwrite_listen_ports:
+      - 8080
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	if len(k8sSvc.OverwriteListenPorts) != 1 || k8sSvc.OverwriteListenPorts[0] != 8080 {
+		t.Errorf("expected overwrite_listen_ports [8080], got %v", k8sSvc.OverwriteListenPorts)
+	}
+}
+
+func TestLoad_KubernetesService_WithOverwriteListenPorts_InvalidRange(t *testing.T) {
+	// 不正なポート範囲（65536）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051
+      - 65536
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("expected error for overwrite_listen_ports out of range, got nil")
+	}
+	if !containsString(err.Error(), "overwrite_listen_ports") {
+		t.Errorf("expected error containing 'overwrite_listen_ports', got '%s'", err.Error())
+	}
+}
+
+func TestLoad_KubernetesService_WithEmptyOverwriteListenPorts(t *testing.T) {
+	// overwrite_listen_ports = [] は省略と同じ（正常系、HTTPリスナーに統合）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    protocol: grpc
+    overwrite_listen_ports: []
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	// 空配列は省略と同じ扱い
+	if len(k8sSvc.OverwriteListenPorts) != 0 {
+		t.Errorf("expected empty overwrite_listen_ports, got %v", k8sSvc.OverwriteListenPorts)
+	}
+}
+
+func TestLoad_KubernetesService_WithoutOverwriteListenPorts(t *testing.T) {
+	// overwrite_listen_ports省略（従来動作）
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    protocol: grpc
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	k8sSvc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	if len(k8sSvc.OverwriteListenPorts) != 0 {
+		t.Errorf("expected empty overwrite_listen_ports (omitted), got %v", k8sSvc.OverwriteListenPorts)
+	}
+}
+
+func TestLoad_KubernetesService_MultipleGRPCWithOverwriteListenPorts(t *testing.T) {
+	// 複数のgRPCサービスがそれぞれ異なるoverwrite_listen_portsを持つ
+	content := `
+listener_port: 80
+services:
+  - kind: kubernetes
+    host: grpc1.localhost
+    namespace: default
+    service: grpc1-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051
+  - kind: kubernetes
+    host: grpc2.localhost
+    namespace: default
+    service: grpc2-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50052
+      - 50053
+  - kind: kubernetes
+    host: grpc3.localhost
+    namespace: default
+    service: grpc3-svc
+    protocol: grpc
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if len(cfg.Services) != 3 {
+		t.Fatalf("expected 3 services, got %d", len(cfg.Services))
+	}
+
+	// 1番目: overwrite_listen_ports [50051]
+	grpc1, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService for first service")
+	}
+	if len(grpc1.OverwriteListenPorts) != 1 || grpc1.OverwriteListenPorts[0] != 50051 {
+		t.Errorf("expected overwrite_listen_ports [50051], got %v", grpc1.OverwriteListenPorts)
+	}
+
+	// 2番目: overwrite_listen_ports [50052, 50053]
+	grpc2, ok := cfg.Services[1].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService for second service")
+	}
+	if len(grpc2.OverwriteListenPorts) != 2 || grpc2.OverwriteListenPorts[0] != 50052 || grpc2.OverwriteListenPorts[1] != 50053 {
+		t.Errorf("expected overwrite_listen_ports [50052, 50053], got %v", grpc2.OverwriteListenPorts)
+	}
+
+	// 3番目: overwrite_listen_ports 省略（空）
+	grpc3, ok := cfg.Services[2].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService for third service")
+	}
+	if len(grpc3.OverwriteListenPorts) != 0 {
+		t.Errorf("expected empty overwrite_listen_ports, got %v", grpc3.OverwriteListenPorts)
+	}
+}

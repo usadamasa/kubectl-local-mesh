@@ -1,0 +1,13 @@
+mocks:
+  - namespace: default
+    service: grpc1-svc
+    resolved_port: 50051
+  - namespace: default
+    service: grpc2-svc
+    resolved_port: 51051
+  - namespace: default
+    service: legacy-grpc-svc
+    resolved_port: 9090
+  - namespace: default
+    service: http-svc
+    resolved_port: 8080
