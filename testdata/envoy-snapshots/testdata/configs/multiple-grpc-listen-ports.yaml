@@ -1,0 +1,35 @@
+listener_port: 80
+
+services:
+  # gRPCサービス1 - 複数ポートで待ち受け
+  - kind: kubernetes
+    host: grpc1.localhost
+    namespace: default
+    service: grpc1-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051
+      - 50052
+
+  # gRPCサービス2 - 個別ポート
+  - kind: kubernetes
+    host: grpc2.localhost
+    namespace: default
+    service: grpc2-svc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 51051
+
+  # gRPCサービス3 - 従来動作（HTTPリスナー統合）
+  - kind: kubernetes
+    host: legacy-grpc.localhost
+    namespace: default
+    service: legacy-grpc-svc
+    protocol: grpc
+
+  # HTTPサービス - 従来動作（HTTPリスナー統合）
+  - kind: kubernetes
+    host: http.localhost
+    namespace: default
+    service: http-svc
+    protocol: http

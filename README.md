@@ -38,6 +38,7 @@ Think of it as a **shadow gateway** for your cluster.
 - **Supports TCP connections via GCP SSH Bastion (for databases)**
 - Automatic local port assignment (no collisions)
 - Single fixed entry port for HTTP/gRPC, dedicated ports for TCP
+- **Individual listener ports for gRPC services** (`overwrite_listen_ports`)
 - Host-based routing (`<service>.localhost`)
 - Auto-reconnecting `port-forward` and SSH tunnels
 - kubectl-native UX (krew plugin friendly)
@@ -143,6 +144,16 @@ services:
     port_name: http
     protocol: http2  # Explicitly use HTTP/2
 
+  # gRPC Service with individual listener ports
+  - kind: kubernetes
+    host: grpc-api.localhost
+    namespace: grpc
+    service: grpc-api
+    protocol: grpc
+    overwrite_listen_ports:  # Listen on specific ports instead of listener_port
+      - 50051
+      - 50052
+
   # Database via GCP SSH Bastion (TCP)
   - kind: tcp
     host: users-db.localhost
@@ -163,6 +174,9 @@ services:
   - `http`: HTTP/1.1 (default for most REST APIs)
   - `http2`: HTTP/2 cleartext (h2c) for HTTP/2-capable services
   - `grpc`: gRPC (requires HTTP/2)
+- `overwrite_listen_ports`: (optional) List of ports for individual Envoy listeners
+  - When specified, the service listens on these ports instead of `listener_port`
+  - Useful for gRPC clients that require specific ports (e.g., `grpcurl host:50051`)
 
 **For Database via SSH Bastion:**
 - `kind`: Must be `tcp`
@@ -229,6 +243,7 @@ By default, `/etc/hosts` is automatically updated, enabling simple hostname-base
 
 - HTTP: `curl http://billing-api.localhost/health`
 - gRPC: `grpcurl -plaintext users-api.localhost list`
+- gRPC (with `overwrite_listen_ports`): `grpcurl -plaintext grpc-api.localhost:50051 list`
 - **Database (TCP)**: `psql -h users-db.localhost -p 5432 -U myuser`
 
 When using port 80 (set `listener_port: 80` in config):

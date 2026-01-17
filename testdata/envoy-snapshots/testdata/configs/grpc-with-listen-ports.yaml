@@ -1,0 +1,11 @@
+listener_port: 80
+
+services:
+  - kind: kubernetes
+    host: grpc.localhost
+    namespace: default
+    service: grpc-svc
+    port_name: grpc
+    protocol: grpc
+    overwrite_listen_ports:
+      - 50051

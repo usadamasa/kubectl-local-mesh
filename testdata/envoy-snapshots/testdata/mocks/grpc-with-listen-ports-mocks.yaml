@@ -1,0 +1,5 @@
+mocks:
+  - namespace: default
+    service: grpc-svc
+    port_name: grpc
+    resolved_port: 50051

@@ -11,3 +11,10 @@ type TCPComponents struct {
 	Cluster  map[string]any
 	Listener map[string]any
 }
+
+// IndividualListenerComponents は個別リスナーを持つサービス用のEnvoy設定コンポーネント
+// OverwriteListenPortsが指定された場合に使用（HTTP/HTTP2/gRPC問わず）
+type IndividualListenerComponents struct {
+	Cluster   map[string]any
+	Listeners []map[string]any // 各OverwriteListenPortに対応するリスナー
+}
