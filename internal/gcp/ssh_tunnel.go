@@ -83,6 +83,7 @@ func buildGcloudSSHCommand(
 		bastion.Instance,
 		fmt.Sprintf("--project=%s", bastion.Project),
 		fmt.Sprintf("--zone=%s", bastion.Zone),
+		"--tunnel-through-iap", // 明示的にIAPを使用（警告抑止）
 		"--",
 		"-L", fmt.Sprintf("%d:%s:%d", localPort, targetHost, targetPort),
 		"-N",
