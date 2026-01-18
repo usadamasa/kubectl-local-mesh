@@ -243,6 +243,43 @@ func TestNormalizeFileEnding(t *testing.T) {
 	}
 }
 
+// TestAddEntriesWithIPs_DifferentIPs は、異なるIPアドレスを持つエントリの追加をテストする
+func TestAddEntriesWithIPs_DifferentIPs(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "hosts")
+	setTestHostsFile(t, testFile)
+
+	// 空ファイルを作成
+	if err := os.WriteFile(testFile, []byte(""), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	entries := []HostEntry{
+		{Hostname: "db1.localhost", IP: "127.0.0.2"},
+		{Hostname: "db2.localhost", IP: "127.0.0.3"},
+		{Hostname: "api.localhost", IP: "127.0.0.1"},
+	}
+
+	if err := AddEntriesWithIPs(entries); err != nil {
+		t.Fatalf("AddEntriesWithIPs failed: %v", err)
+	}
+
+	content, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	expected := markerStart + "\n" +
+		"127.0.0.2 db1.localhost\n" +
+		"127.0.0.3 db2.localhost\n" +
+		"127.0.0.1 api.localhost\n" +
+		markerEnd + "\n"
+
+	if string(content) != expected {
+		t.Errorf("unexpected content:\ngot:\n%q\nwant:\n%q", string(content), expected)
+	}
+}
+
 // TestTrimTrailingEmptyLines は、trimTrailingEmptyLines関数のユニットテスト
 func TestTrimTrailingEmptyLines(t *testing.T) {
 	tests := []struct {

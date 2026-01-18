@@ -14,6 +14,7 @@ services:
       target_host: 10.0.0.1
       target_port: 5432
       assigned_local_port: 10001
+      assigned_listen_addr: 127.0.0.2
       assigned_listener_port: 5432
       envoy_cluster_name: tcp_primary_10_0_0_1_5432
     - kind: tcp
@@ -22,5 +23,6 @@ services:
       target_host: 10.0.0.2
       target_port: 6379
       assigned_local_port: 10002
+      assigned_listen_addr: 127.0.0.3
       assigned_listener_port: 6379
       envoy_cluster_name: tcp_primary_10_0_0_2_6379

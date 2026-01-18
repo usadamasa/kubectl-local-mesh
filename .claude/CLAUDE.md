@@ -100,6 +100,14 @@ DB (Cloud SQL等、Private IP)
    - ユーザーフレンドリーなサマリー出力
    - `Logger`型によるログ出力の抽象化
 
+10. **loopback** (`internal/loopback/`)
+    - **macOS限定機能**
+    - loopback IPエイリアス管理（TCPサービス用）
+    - `IPAllocator`: 127.0.0.2〜127.0.0.254から順次IPを割り当て
+    - `AliasManager`: `ifconfig lo0 alias`による追加・削除
+    - 複数TCPサービスが同じポート（例: 5432）を使用する場合の重複回避
+    - 起動時にエイリアス追加、終了時にdeferで自動削除
+
 ## 開発ワークフロー
 
 このプロジェクトでは、開発タスクの実行に[Task](https://taskfile.dev)を使用します。
@@ -167,6 +175,17 @@ kubectl-localmeshにおけるログレベル設計とユーザーフレンドリ
 - forbidigo lintルールの説明
 
 詳細: `.claude/skills/kubectl-localmesh-logging-guide/SKILL.md`
+
+#### `kubectl-localmesh-macos-localhost` - macOS .localhostドメインの挙動
+macOSにおける.localhostドメインの特殊な挙動と、TCPサービス設定時の注意点を提供します。
+
+**主な機能**:
+- macOSが`.localhost`を特別扱いする理由（RFC 6761）
+- TCPサービスで`.localhost`が動作しない原因と解決策
+- 推奨TLD（`.localdomain`など）
+- 診断コマンド
+
+詳細: `.claude/skills/kubectl-localmesh-macos-localhost/SKILL.md`
 
 ### クイックスタート
 

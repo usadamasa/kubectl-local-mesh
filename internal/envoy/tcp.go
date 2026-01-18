@@ -6,6 +6,7 @@ import "github.com/usadamasa/kubectl-localmesh/internal/port"
 type TCPServiceBuilder struct {
 	Host       string
 	ListenPort port.TCPPort // TCPリスナーの独立ポート
+	ListenAddr string       // バインドするIPアドレス（127.0.0.x）
 	// メタデータ（ログ・診断用、Envoy設定生成には使用しない）
 	SSHBastion string
 	TargetHost string
@@ -13,14 +14,20 @@ type TCPServiceBuilder struct {
 }
 
 // NewTCPServiceBuilder はTCPServiceBuilderを生成
-func NewTCPServiceBuilder(host string, listenPort port.TCPPort, sshBastion, targetHost string, targetPort port.TCPPort) *TCPServiceBuilder {
+func NewTCPServiceBuilder(host string, listenPort port.TCPPort, listenAddr, sshBastion, targetHost string, targetPort port.TCPPort) *TCPServiceBuilder {
 	return &TCPServiceBuilder{
 		Host:       host,
 		ListenPort: listenPort,
+		ListenAddr: listenAddr,
 		SSHBastion: sshBastion,
 		TargetHost: targetHost,
 		TargetPort: targetPort,
 	}
+}
+
+// GetListenAddr はリッスンアドレスを返す
+func (b *TCPServiceBuilder) GetListenAddr() string {
+	return b.ListenAddr
 }
 
 // Build はTCPサービスの設定コンポーネントを生成
@@ -56,7 +63,7 @@ func (b *TCPServiceBuilder) Build(clusterName string, localPort int) TCPComponen
 		"name": "listener_tcp_" + clusterName,
 		"address": map[string]any{
 			"socket_address": map[string]any{
-				"address":    "0.0.0.0",
+				"address":    b.ListenAddr,
 				"port_value": int(b.ListenPort),
 			},
 		},

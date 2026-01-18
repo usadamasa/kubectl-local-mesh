@@ -20,9 +20,10 @@ type PortForwardMapping struct {
 	TargetPort int    `yaml:"target_port,omitempty"`
 
 	// Common assigned ports
-	AssignedLocalPort     int   `yaml:"assigned_local_port"`
-	AssignedListenerPort  int   `yaml:"assigned_listener_port,omitempty"`  // TCPサービス用
-	AssignedListenerPorts []int `yaml:"assigned_listener_ports,omitempty"` // OverwriteListenPorts用
+	AssignedLocalPort     int    `yaml:"assigned_local_port"`
+	AssignedListenAddr    string `yaml:"assigned_listen_addr,omitempty"`    // TCPサービス用（loopback IP）
+	AssignedListenerPort  int    `yaml:"assigned_listener_port,omitempty"`  // TCPサービス用
+	AssignedListenerPorts []int  `yaml:"assigned_listener_ports,omitempty"` // OverwriteListenPorts用
 
 	// Envoy cluster reference
 	EnvoyClusterName string `yaml:"envoy_cluster_name"`
@@ -71,6 +72,7 @@ func BuildMappings(configs []envoy.ServiceConfig) PortForwardMappingSet {
 				TargetHost:           builder.TargetHost,
 				TargetPort:           int(builder.TargetPort),
 				AssignedLocalPort:    int(cfg.LocalPort),
+				AssignedListenAddr:   builder.ListenAddr,
 				AssignedListenerPort: int(builder.ListenPort),
 				EnvoyClusterName:     cfg.ClusterName,
 			}

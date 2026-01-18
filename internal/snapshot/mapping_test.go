@@ -48,6 +48,7 @@ func TestPortForwardMapping_YAML(t *testing.T) {
 			TargetHost:           "10.0.0.1",
 			TargetPort:           5432,
 			AssignedLocalPort:    10001,
+			AssignedListenAddr:   "127.0.0.2",
 			AssignedListenerPort: 5432,
 			EnvoyClusterName:     "tcp_primary_10_0_0_1_5432",
 		}
@@ -66,6 +67,7 @@ func TestPortForwardMapping_YAML(t *testing.T) {
 		assertContains(t, got, "target_host: 10.0.0.1")
 		assertContains(t, got, "target_port: 5432")
 		assertContains(t, got, "assigned_local_port: 10001")
+		assertContains(t, got, "assigned_listen_addr: 127.0.0.2")
 		assertContains(t, got, "assigned_listener_port: 5432")
 		assertContains(t, got, "envoy_cluster_name: tcp_primary_10_0_0_1_5432")
 	})
@@ -93,6 +95,7 @@ func TestPortForwardMapping_YAML(t *testing.T) {
 		assertNotContains(t, got, "ssh_bastion")
 		assertNotContains(t, got, "target_host")
 		assertNotContains(t, got, "target_port")
+		assertNotContains(t, got, "assigned_listen_addr")
 		assertNotContains(t, got, "assigned_listener_port")
 	})
 }
@@ -201,7 +204,7 @@ func TestBuildMappings(t *testing.T) {
 
 	t.Run("tcp services", func(t *testing.T) {
 		builder := envoy.NewTCPServiceBuilder(
-			"db.localhost", 5432, "primary", "10.0.0.1", 5432,
+			"db.localhost", 5432, "127.0.0.2", "primary", "10.0.0.1", 5432,
 		)
 		configs := []envoy.ServiceConfig{
 			{
@@ -224,6 +227,7 @@ func TestBuildMappings(t *testing.T) {
 		assertEqual(t, "10.0.0.1", m.TargetHost)
 		assertEqual(t, 5432, m.TargetPort)
 		assertEqual(t, 10002, m.AssignedLocalPort)
+		assertEqual(t, "127.0.0.2", m.AssignedListenAddr)
 		assertEqual(t, 5432, m.AssignedListenerPort)
 		assertEqual(t, "tcp_primary_10_0_0_1_5432", m.EnvoyClusterName)
 	})
@@ -233,7 +237,7 @@ func TestBuildMappings(t *testing.T) {
 			"api.localhost", "http", "default", "api", "http", 0, nil,
 		)
 		tcpBuilder := envoy.NewTCPServiceBuilder(
-			"db.localhost", 5432, "primary", "10.0.0.1", 5432,
+			"db.localhost", 5432, "127.0.0.2", "primary", "10.0.0.1", 5432,
 		)
 		configs := []envoy.ServiceConfig{
 			{

@@ -85,7 +85,7 @@ static_resources:
           name: listener_http
         - address:
             socket_address:
-                address: 0.0.0.0
+                address: 127.0.0.2
                 port_value: 5432
           enable_reuse_port:
             value: false
@@ -99,7 +99,7 @@ static_resources:
           name: listener_tcp_tcp_primary_10_0_0_1_5432
         - address:
             socket_address:
-                address: 0.0.0.0
+                address: 127.0.0.3
                 port_value: 6379
           enable_reuse_port:
             value: false

@@ -5,5 +5,6 @@ services:
       target_host: 10.0.0.1
       target_port: 5432
       assigned_local_port: 10000
+      assigned_listen_addr: 127.0.0.2
       assigned_listener_port: 5432
       envoy_cluster_name: tcp_primary_10_0_0_1_5432
