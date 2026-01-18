@@ -14,7 +14,7 @@ func TestKubernetesServiceBuilder_Build_HTTPRoute(t *testing.T) {
 		nil, // OverwriteListenPorts
 	)
 
-	result := builder.Build("api_cluster", 10001)
+	result := builder.Build("api_cluster", 10001, 80)
 
 	// HTTPComponentsを返すことを確認
 	httpComponents, ok := result.(HTTPComponents)
@@ -41,7 +41,7 @@ func TestKubernetesServiceBuilder_Build_WithOverwriteListenPorts(t *testing.T) {
 		[]port.IndividualListenerPort{50051, 50052},
 	)
 
-	result := builder.Build("grpc_cluster", 10001)
+	result := builder.Build("grpc_cluster", 10001, 80)
 
 	// IndividualListenerComponentsを返すことを確認
 	listenerComponents, ok := result.(IndividualListenerComponents)
@@ -79,7 +79,7 @@ func TestKubernetesServiceBuilder_Build_SingleListenPort(t *testing.T) {
 		[]port.IndividualListenerPort{50051},
 	)
 
-	result := builder.Build("grpc_cluster", 10001)
+	result := builder.Build("grpc_cluster", 10001, 80)
 
 	listenerComponents, ok := result.(IndividualListenerComponents)
 	if !ok {
@@ -109,7 +109,7 @@ func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPorts(t *testing
 		[]port.IndividualListenerPort{8080},
 	)
 
-	result := builder.Build("http_cluster", 10001)
+	result := builder.Build("http_cluster", 10001, 80)
 
 	listenerComponents, ok := result.(IndividualListenerComponents)
 	if !ok {
@@ -139,7 +139,7 @@ func TestKubernetesServiceBuilder_Build_gRPC_WithOverwriteListenPorts(t *testing
 		[]port.IndividualListenerPort{50051},
 	)
 
-	result := builder.Build("grpc_cluster", 10001)
+	result := builder.Build("grpc_cluster", 10001, 80)
 
 	listenerComponents, ok := result.(IndividualListenerComponents)
 	if !ok {

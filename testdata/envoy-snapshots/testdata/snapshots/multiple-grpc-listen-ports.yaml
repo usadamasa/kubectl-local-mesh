@@ -100,6 +100,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - legacy-grpc.localhost
+                                - legacy-grpc.localhost:80
                               name: default_legacy_grpc_svc_9090
                               routes:
                                 - match:
@@ -109,6 +110,7 @@ static_resources:
                                     timeout: 0s
                             - domains:
                                 - http.localhost
+                                - http.localhost:80
                               name: default_http_svc_8080
                               routes:
                                 - match:
@@ -140,7 +142,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - grpc1.localhost
-                                - '*'
+                                - grpc1.localhost:50051
                               name: default_grpc1_svc_50051
                               routes:
                                 - match:
@@ -172,7 +174,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - grpc1.localhost
-                                - '*'
+                                - grpc1.localhost:50052
                               name: default_grpc1_svc_50051
                               routes:
                                 - match:
@@ -204,7 +206,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - grpc2.localhost
-                                - '*'
+                                - grpc2.localhost:51051
                               name: default_grpc2_svc_51051
                               routes:
                                 - match:

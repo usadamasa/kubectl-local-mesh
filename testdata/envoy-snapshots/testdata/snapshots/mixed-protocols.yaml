@@ -83,6 +83,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - api.localhost
+                                - api.localhost:80
                               name: default_api_8080
                               routes:
                                 - match:
@@ -92,6 +93,7 @@ static_resources:
                                     timeout: 0s
                             - domains:
                                 - api2.localhost
+                                - api2.localhost:80
                               name: default_api2_8080
                               routes:
                                 - match:
@@ -101,6 +103,7 @@ static_resources:
                                     timeout: 0s
                             - domains:
                                 - grpc.localhost
+                                - grpc.localhost:80
                               name: default_grpc_service_9090
                               routes:
                                 - match:

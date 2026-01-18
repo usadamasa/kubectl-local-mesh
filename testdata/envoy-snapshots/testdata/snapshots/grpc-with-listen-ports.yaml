@@ -49,7 +49,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - grpc.localhost
-                                - '*'
+                                - grpc.localhost:50051
                               name: default_grpc_svc_50051
                               routes:
                                 - match:
