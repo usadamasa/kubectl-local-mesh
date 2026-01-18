@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/tools/portforward"
 
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 // PortForwarder forwards ports from local to remote pod.
@@ -27,7 +28,8 @@ type PortForwarderFactory interface {
 	CreatePortForwarder(
 		ctx context.Context,
 		namespace, podName string,
-		localPort, remotePort int,
+		localPort port.LocalPort,
+		remotePort port.ServicePort,
 	) (PortForwarder, chan struct{}, error)
 }
 
@@ -45,7 +47,8 @@ func NewWebSocketPortForwarderFactory(config *rest.Config) PortForwarderFactory 
 func (f *websocketPortForwarderFactory) CreatePortForwarder(
 	ctx context.Context,
 	namespace, podName string,
-	localPort, remotePort int,
+	localPort port.LocalPort,
+	remotePort port.ServicePort,
 ) (PortForwarder, chan struct{}, error) {
 	// Pod port-forward用のURL構築
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, podName)
@@ -62,7 +65,7 @@ func (f *websocketPortForwarderFactory) CreatePortForwarder(
 	}
 
 	// ポート仕様（"localPort:remotePort"形式）
-	ports := []string{fmt.Sprintf("%d:%d", localPort, remotePort)}
+	ports := []string{fmt.Sprintf("%d:%d", int(localPort), int(remotePort))}
 
 	// stopChanとreadyChanの準備
 	stopChan := make(chan struct{}, 1)
@@ -99,7 +102,8 @@ func StartPortForwardLoop(
 	config *rest.Config,
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
-	localPort, remotePort int,
+	localPort port.LocalPort,
+	remotePort port.ServicePort,
 	logger *log.Logger,
 ) error {
 	factory := NewWebSocketPortForwarderFactory(config)
@@ -115,7 +119,8 @@ func StartPortForwardLoopWithFactory(
 	factory PortForwarderFactory,
 	clientset kubernetes.Interface,
 	namespace, serviceName string,
-	localPort, remotePort int,
+	localPort port.LocalPort,
+	remotePort port.ServicePort,
 	logger *log.Logger,
 ) error {
 	for {
@@ -152,7 +157,7 @@ func StartPortForwardLoopWithFactory(
 		case <-readyChan:
 			// 成功ログ出力（debugレベル）
 			logger.Debugf("port-forward ready: %s/%s -> pod/%s (127.0.0.1:%d -> %d)",
-				namespace, serviceName, podName, localPort, remotePort)
+				namespace, serviceName, podName, int(localPort), int(remotePort))
 		case <-ctx.Done():
 			return nil
 		case <-errChan:

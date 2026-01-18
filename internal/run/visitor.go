@@ -57,18 +57,17 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 		s.Namespace,
 		s.Service,
 		s.PortName,
-		int(s.Port),
+		s.Port,
 	)
 	if err != nil {
 		return err
 	}
 
 	// ローカルポート割り当て
-	lp, err := port.FreeLocalPort()
+	localPort, err := port.FreeLocalPort()
 	if err != nil {
 		return err
 	}
-	localPort := int(lp)
 	clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
 	// ビルダー構築
@@ -86,9 +85,9 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	)
 
 	// ServiceSummaryを追加
-	listenPort := 0
+	var listenPort port.ListenerPort
 	if len(s.OverwriteListenPorts) > 0 {
-		listenPort = int(s.OverwriteListenPorts[0])
+		listenPort = port.ListenerPort(s.OverwriteListenPorts[0])
 	}
 	v.serviceSummaries = append(v.serviceSummaries, log.ServiceSummary{
 		Host:        s.Host,
@@ -99,7 +98,7 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	})
 
 	// port-forwardをgoroutineで起動
-	go func(ns, svc string, local, remote int, logger *log.Logger) {
+	go func(ns, svc string, local port.LocalPort, remote port.ServicePort, logger *log.Logger) {
 		if err := k8s.StartPortForwardLoop(
 			v.ctx,
 			v.restConfig,
@@ -135,11 +134,10 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 	}
 
 	// ローカルポート割り当て
-	lp, err := port.FreeLocalPort()
+	localPort, err := port.FreeLocalPort()
 	if err != nil {
 		return err
 	}
-	localPort := int(lp)
 	clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
 	// ビルダー構築
@@ -162,11 +160,11 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 		Protocol:    "tcp",
 		DisplayType: "TCP",
 		Backend:     fmt.Sprintf("%s @ %s:%d", s.SSHBastion, s.TargetHost, s.TargetPort),
-		ListenPort:  int(s.ListenPort),
+		ListenPort:  port.ListenerPort(s.ListenPort),
 	})
 
 	// GCP SSH tunnelをgoroutineで起動
-	go func(b *config.SSHBastion, local int, target string, targetPort int, logger *log.Logger) {
+	go func(b *config.SSHBastion, local port.LocalPort, target string, targetPort port.TCPPort, logger *log.Logger) {
 		if err := gcp.StartGCPSSHTunnel(
 			v.ctx,
 			b,
@@ -179,7 +177,7 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 				fmt.Fprintf(os.Stderr, "gcp-ssh tunnel error for %s: %v\n", b.Instance, err)
 			}
 		}
-	}(bastion, localPort, s.TargetHost, int(s.TargetPort), v.logger)
+	}(bastion, localPort, s.TargetHost, s.TargetPort, v.logger)
 
 	// ServiceConfig を保存
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{

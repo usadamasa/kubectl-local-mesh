@@ -9,6 +9,7 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 // DumpVisitor は DumpEnvoyConfig() 処理のための Visitor 実装
@@ -38,7 +39,7 @@ func NewDumpVisitor(
 
 // VisitKubernetes は Kubernetes Service の処理（ダンプ用）
 func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
-	var remotePort int
+	var remotePort port.ServicePort
 	var err error
 
 	// モック設定がある場合はモックから取得
@@ -55,7 +56,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 			s.Namespace,
 			s.Service,
 			s.PortName,
-			int(s.Port),
+			s.Port,
 		)
 		if err != nil {
 			return err
@@ -63,7 +64,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	}
 
 	// ダミーのローカルポート
-	dummyLocalPort := 10000 + v.idx
+	dummyLocalPort := port.LocalPort(10000 + v.idx)
 	clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
 	builder := envoy.NewKubernetesServiceBuilder(
@@ -83,7 +84,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 // VisitTCP は TCP Service の処理（ダンプ用）
 func (v *DumpVisitor) VisitTCP(s *config.TCPService) error {
 	// ダミーのローカルポート
-	dummyLocalPort := 10000 + v.idx
+	dummyLocalPort := port.LocalPort(10000 + v.idx)
 	clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
 	builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, s.SSHBastion, s.TargetHost, s.TargetPort)
@@ -107,10 +108,10 @@ func (v *DumpVisitor) GetServiceConfigs() []envoy.ServiceConfig {
 	return v.serviceConfigs
 }
 
-func findMockPort(mockCfg *config.MockConfig, namespace, service, portName string) (int, error) {
+func findMockPort(mockCfg *config.MockConfig, namespace, service, portName string) (port.ServicePort, error) {
 	for _, m := range mockCfg.Mocks {
 		if m.Namespace == namespace && m.Service == service && m.PortName == portName {
-			return int(m.ResolvedPort), nil
+			return m.ResolvedPort, nil
 		}
 	}
 	return 0, fmt.Errorf("mock config not found for %s/%s (port_name=%s)", namespace, service, portName)

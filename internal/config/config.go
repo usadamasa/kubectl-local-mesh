@@ -177,7 +177,7 @@ func (k *KubernetesService) Validate(cfg *Config) error {
 
 	// 特権ポート警告
 	for _, p := range k.OverwriteListenPorts {
-		port.WarnPrivilegedPort(int(p), "overwrite_listen_ports", k.Host)
+		port.WarnPrivilegedPort(p, "overwrite_listen_ports", k.Host)
 	}
 
 	return nil
@@ -198,7 +198,7 @@ func (t *TCPService) Validate(cfg *Config) error {
 	}
 
 	// TargetPortのバリデーション（共通関数使用）
-	if err := port.ValidateRequiredPort(int(t.TargetPort), "target_port", t.Host); err != nil {
+	if err := port.ValidateRequiredPort(t.TargetPort, "target_port", t.Host); err != nil {
 		return err
 	}
 
@@ -208,7 +208,7 @@ func (t *TCPService) Validate(cfg *Config) error {
 	}
 
 	// 特権ポート警告
-	port.WarnPrivilegedPort(int(t.ListenPort), "listen_port", t.Host)
+	port.WarnPrivilegedPort(t.ListenPort, "listen_port", t.Host)
 
 	return nil
 }
@@ -226,13 +226,13 @@ func Load(path string) (*Config, error) {
 	// デフォルト値設定
 	if cfg.ListenerPort == 0 {
 		cfg.ListenerPort = 80
-	} else if err := port.ValidatePort(int(cfg.ListenerPort), "listener_port", "config"); err != nil {
+	} else if err := port.ValidatePort(cfg.ListenerPort, "listener_port", "config"); err != nil {
 		return nil, err
 	}
 
 	// 特権ポート警告（デフォルト値80は除外）
 	if cfg.ListenerPort != 80 {
-		port.WarnPrivilegedPort(int(cfg.ListenerPort), "listener_port", "config")
+		port.WarnPrivilegedPort(cfg.ListenerPort, "listener_port", "config")
 	}
 
 	if len(cfg.Services) == 0 {
@@ -257,17 +257,17 @@ func Load(path string) (*Config, error) {
 
 	// ポート競合チェック
 	checker := port.NewPortConflictChecker()
-	checker.Register(int(cfg.ListenerPort), "listener_port")
+	port.RegisterPort(checker, cfg.ListenerPort, "listener_port")
 
 	for _, svcDef := range cfg.Services {
 		svc := svcDef.Get()
 		switch s := svc.(type) {
 		case *KubernetesService:
 			for _, p := range s.OverwriteListenPorts {
-				checker.Register(int(p), s.Host)
+				port.RegisterPort(checker, p, s.Host)
 			}
 		case *TCPService:
-			checker.Register(int(s.ListenPort), s.Host)
+			port.RegisterPort(checker, s.ListenPort, s.Host)
 		}
 	}
 

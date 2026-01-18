@@ -47,8 +47,8 @@ func BuildMappings(configs []envoy.ServiceConfig) PortForwardMappingSet {
 				Namespace:          builder.Namespace,
 				Service:            builder.ServiceName,
 				PortName:           builder.PortName,
-				ResolvedRemotePort: cfg.ResolvedRemotePort,
-				AssignedLocalPort:  cfg.LocalPort,
+				ResolvedRemotePort: int(cfg.ResolvedRemotePort),
+				AssignedLocalPort:  int(cfg.LocalPort),
 				EnvoyClusterName:   cfg.ClusterName,
 			}
 
@@ -70,7 +70,7 @@ func BuildMappings(configs []envoy.ServiceConfig) PortForwardMappingSet {
 				SSHBastion:           builder.SSHBastion,
 				TargetHost:           builder.TargetHost,
 				TargetPort:           int(builder.TargetPort),
-				AssignedLocalPort:    cfg.LocalPort,
+				AssignedLocalPort:    int(cfg.LocalPort),
 				AssignedListenerPort: int(builder.ListenPort),
 				EnvoyClusterName:     cfg.ClusterName,
 			}

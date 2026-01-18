@@ -7,8 +7,13 @@ import (
 	"os"
 )
 
-// Port は汎用ポート番号の基底型
-type Port int
+// Port はすべてのポート番号型の共通制約
+type Port interface {
+	~int
+}
+
+// LocalPort はローカルポートフォワード用のポート番号
+type LocalPort int
 
 // ListenerPort はEnvoyメインリスナーのポート番号
 type ListenerPort int
@@ -23,42 +28,42 @@ type TCPPort int
 type IndividualListenerPort int
 
 const (
-	MinPort           = 1
-	MaxPort           = 65535
-	PrivilegedPortMax = 1023
+	minPort           = 1
+	maxPort           = 65535
+	privilegedPortMax = 1023
 )
 
 // IsValid はポート番号が有効範囲内かを確認
-func (p Port) IsValid() bool {
-	return p >= MinPort && p <= MaxPort
+func IsValid[T Port](p T) bool {
+	return int(p) >= minPort && int(p) <= maxPort
 }
 
 // IsPrivileged は特権ポート（0-1023）かを確認
-func (p Port) IsPrivileged() bool {
-	return p <= PrivilegedPortMax
+func IsPrivileged[T Port](p T) bool {
+	return int(p) <= privilegedPortMax
 }
 
 // ValidatePort はポート番号のバリデーションを行う
-func ValidatePort(port int, fieldName, serviceName string) error {
-	if port < MinPort || port > MaxPort {
+func ValidatePort[T Port](port T, fieldName, serviceName string) error {
+	if int(port) < minPort || int(port) > maxPort {
 		return fmt.Errorf("%s must be between %d and %d for service '%s', got %d",
-			fieldName, MinPort, MaxPort, serviceName, port)
+			fieldName, minPort, maxPort, serviceName, int(port))
 	}
 	return nil
 }
 
 // ValidateRequiredPort は必須ポート番号のバリデーションを行う
-func ValidateRequiredPort(port int, fieldName, serviceName string) error {
-	if port == 0 {
+func ValidateRequiredPort[T Port](port T, fieldName, serviceName string) error {
+	if int(port) == 0 {
 		return fmt.Errorf("%s is required for service '%s'", fieldName, serviceName)
 	}
 	return ValidatePort(port, fieldName, serviceName)
 }
 
 // ValidatePorts はポート番号スライスのバリデーションを行う
-func ValidatePorts[T ~int](ports []T, fieldName, serviceName string) error {
+func ValidatePorts[T Port](ports []T, fieldName, serviceName string) error {
 	for _, p := range ports {
-		if err := ValidatePort(int(p), fieldName, serviceName); err != nil {
+		if err := ValidatePort(p, fieldName, serviceName); err != nil {
 			return err
 		}
 	}
@@ -74,10 +79,11 @@ func SetWarnWriter(w io.Writer) {
 }
 
 // WarnPrivilegedPort は特権ポート使用時の警告を出力
-func WarnPrivilegedPort(port int, fieldName, serviceName string) {
-	if port > 0 && port <= PrivilegedPortMax {
+func WarnPrivilegedPort[T Port](port T, fieldName, serviceName string) {
+	p := int(port)
+	if p > 0 && p <= privilegedPortMax {
 		_, _ = fmt.Fprintf(warnWriter, "Warning: %s=%d for service '%s' is a privileged port (requires root/sudo)\n",
-			fieldName, port, serviceName)
+			fieldName, p, serviceName)
 	}
 }
 
@@ -102,12 +108,17 @@ func (c *PortConflictChecker) Register(port int, serviceName string) {
 	c.usedPorts[port] = serviceName
 }
 
+// RegisterPort はセマンティック型のポートを登録するジェネリック関数
+func RegisterPort[T Port](c *PortConflictChecker, port T, serviceName string) {
+	c.Register(int(port), serviceName)
+}
+
 // FreeLocalPort は利用可能なローカルポートを取得
-func FreeLocalPort() (Port, error) {
+func FreeLocalPort() (LocalPort, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
 	}
 	defer func() { _ = l.Close() }()
-	return Port(l.Addr().(*net.TCPAddr).Port), nil
+	return LocalPort(l.Addr().(*net.TCPAddr).Port), nil
 }

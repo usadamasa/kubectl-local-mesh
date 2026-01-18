@@ -87,7 +87,7 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	logger.Debugf("listen: 0.0.0.0:%d", cfg.ListenerPort)
 
 	// サマリー出力
-	summary := log.GenerateSummary(visitor.GetServiceSummaries(), int(cfg.ListenerPort))
+	summary := log.GenerateSummary(visitor.GetServiceSummaries(), cfg.ListenerPort)
 	logger.Info(summary)
 
 	envoyCmd := exec.CommandContext(

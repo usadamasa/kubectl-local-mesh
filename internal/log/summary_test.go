@@ -3,6 +3,8 @@ package log
 import (
 	"strings"
 	"testing"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestGenerateSummary_HTTPAndGRPCServices(t *testing.T) {
@@ -168,8 +170,8 @@ func TestServiceSummary_EffectiveListenPort(t *testing.T) {
 	tests := []struct {
 		name           string
 		summary        ServiceSummary
-		defaultPort    int
-		wantListenPort int
+		defaultPort    port.ListenerPort
+		wantListenPort port.ListenerPort
 	}{
 		{
 			name: "use default port when ListenPort is 0",

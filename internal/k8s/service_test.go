@@ -7,6 +7,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestResolveServicePort(t *testing.T) {
@@ -15,9 +17,9 @@ func TestResolveServicePort(t *testing.T) {
 		namespace     string
 		serviceName   string
 		portName      string
-		port          int
+		port          port.ServicePort
 		service       *corev1.Service
-		expectedPort  int
+		expectedPort  port.ServicePort
 		expectedError string
 	}{
 		{
@@ -181,7 +183,7 @@ func TestResolveServicePort(t *testing.T) {
 				}
 			}
 
-			port, err := ResolveServicePort(
+			p, err := ResolveServicePort(
 				ctx,
 				clientset,
 				tt.namespace,
@@ -202,8 +204,8 @@ func TestResolveServicePort(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if port != tt.expectedPort {
-					t.Errorf("expected port %d, got %d", tt.expectedPort, port)
+				if p != tt.expectedPort {
+					t.Errorf("expected port %d, got %d", tt.expectedPort, p)
 				}
 			}
 		})
