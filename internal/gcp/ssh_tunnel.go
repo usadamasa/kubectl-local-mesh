@@ -10,6 +10,7 @@ import (
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 // StartGCPSSHTunnel はGCP Compute Instance経由でSSH tunnelを確立し、
@@ -18,9 +19,9 @@ import (
 func StartGCPSSHTunnel(
 	ctx context.Context,
 	bastion *config.SSHBastion,
-	localPort int,
+	localPort port.LocalPort,
 	targetHost string,
-	targetPort int,
+	targetPort port.TCPPort,
 	logger *log.Logger,
 ) error {
 	// パラメータのバリデーション
@@ -33,13 +34,13 @@ func StartGCPSSHTunnel(
 	if bastion.Zone == "" {
 		return fmt.Errorf("bastion zone is empty")
 	}
-	if localPort <= 0 || localPort > 65535 {
+	if !port.IsValid(localPort) {
 		return fmt.Errorf("invalid local port: %d", localPort)
 	}
 	if targetHost == "" {
 		return fmt.Errorf("target host is empty")
 	}
-	if targetPort <= 0 || targetPort > 65535 {
+	if !port.IsValid(targetPort) {
 		return fmt.Errorf("invalid target port: %d", targetPort)
 	}
 
@@ -62,7 +63,7 @@ func StartGCPSSHTunnel(
 		// エラーは自動再接続で処理されるため、ここではdebugログ出力のみ
 		if err != nil {
 			logger.Debugf("SSH tunnel disconnected: %s -> %s:%d (reconnecting...): %v",
-				bastion.Instance, targetHost, targetPort, err)
+				bastion.Instance, targetHost, int(targetPort), err)
 		}
 
 		// 300ms待機後に再接続
@@ -74,9 +75,9 @@ func StartGCPSSHTunnel(
 // テスト可能にするため、package private関数として定義しています。
 func buildGcloudSSHCommand(
 	bastion *config.SSHBastion,
-	localPort int,
+	localPort port.LocalPort,
 	targetHost string,
-	targetPort int,
+	targetPort port.TCPPort,
 ) []string {
 	return []string{
 		"compute", "ssh",
@@ -85,7 +86,7 @@ func buildGcloudSSHCommand(
 		fmt.Sprintf("--zone=%s", bastion.Zone),
 		"--tunnel-through-iap", // 明示的にIAPを使用（警告抑止）
 		"--",
-		"-L", fmt.Sprintf("%d:%s:%d", localPort, targetHost, targetPort),
+		"-L", fmt.Sprintf("%d:%s:%d", int(localPort), targetHost, int(targetPort)),
 		"-N",
 		"-o", "ExitOnForwardFailure=yes",
 		"-o", "ServerAliveInterval=30",
@@ -98,9 +99,9 @@ func buildGcloudSSHCommand(
 func startSingleSSHTunnel(
 	ctx context.Context,
 	bastion *config.SSHBastion,
-	localPort int,
+	localPort port.LocalPort,
 	targetHost string,
-	targetPort int,
+	targetPort port.TCPPort,
 	logger *log.Logger,
 ) error {
 	// 1. gcloudコマンドのパスを取得

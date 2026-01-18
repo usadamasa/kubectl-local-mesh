@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestSelectPodForService_ReadyPod(t *testing.T) {
@@ -341,14 +342,15 @@ func TestStartPortForwardLoop_NoPodRetry(t *testing.T) {
 // mockPortForwarderFactory for testing
 type mockPortForwarderFactory struct {
 	createFunc func(ctx context.Context, namespace, podName string,
-		localPort, remotePort int) (PortForwarder, chan struct{}, error)
+		localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error)
 	callCount int
 }
 
 func (m *mockPortForwarderFactory) CreatePortForwarder(
 	ctx context.Context,
 	namespace, podName string,
-	localPort, remotePort int,
+	localPort port.LocalPort,
+	remotePort port.ServicePort,
 ) (PortForwarder, chan struct{}, error) {
 	m.callCount++
 	if m.createFunc != nil {
@@ -442,7 +444,7 @@ func TestStartPortForwardLoopWithFactory_Success(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error) {
 			if podName != "test-pod" {
 				t.Errorf("expected pod name 'test-pod', got %q", podName)
 			}
@@ -481,7 +483,7 @@ func TestStartPortForwardLoopWithFactory_RetryOnError(t *testing.T) {
 	callCount := 0
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error) {
 			callCount++
 			// 最初の2回はエラー、3回目は成功
 			if callCount < 3 {
@@ -528,7 +530,7 @@ func TestStartPortForwardLoopWithFactory_ContextCancellation(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error) {
 			// 即座にキャンセル
 			cancel()
 			readyChan := make(chan struct{})
@@ -573,7 +575,7 @@ func TestStartPortForwardLoopWithFactory_PodSelectionError(t *testing.T) {
 
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error) {
 			t.Error("factory should not be called when pod selection fails")
 			readyChan := make(chan struct{})
 			close(readyChan)
@@ -688,7 +690,7 @@ func TestStartPortForwardLoopWithFactory_ForwardPortsError(t *testing.T) {
 	forwardCallCount := 0
 	mockFactory := &mockPortForwarderFactory{
 		createFunc: func(ctx context.Context, namespace, podName string,
-			localPort, remotePort int) (PortForwarder, chan struct{}, error) {
+			localPort port.LocalPort, remotePort port.ServicePort) (PortForwarder, chan struct{}, error) {
 			readyChan := make(chan struct{})
 			close(readyChan)
 			return &mockPortForwarder{

@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestPort_IsValid(t *testing.T) {
+func TestIsValid(t *testing.T) {
 	tests := []struct {
 		name string
-		port Port
+		port int
 		want bool
 	}{
 		{"zero is invalid", 0, false},
@@ -23,17 +23,47 @@ func TestPort_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.port.IsValid(); got != tt.want {
-				t.Errorf("Port(%d).IsValid() = %v, want %v", tt.port, got, tt.want)
+			if got := IsValid(tt.port); got != tt.want {
+				t.Errorf("IsValid(%d) = %v, want %v", tt.port, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestPort_IsPrivileged(t *testing.T) {
+func TestIsValid_WithSemanticTypes(t *testing.T) {
+	// LocalPort
+	if !IsValid(LocalPort(8080)) {
+		t.Error("IsValid(LocalPort(8080)) should be true")
+	}
+	if IsValid(LocalPort(0)) {
+		t.Error("IsValid(LocalPort(0)) should be false")
+	}
+
+	// ServicePort
+	if !IsValid(ServicePort(443)) {
+		t.Error("IsValid(ServicePort(443)) should be true")
+	}
+
+	// ListenerPort
+	if !IsValid(ListenerPort(80)) {
+		t.Error("IsValid(ListenerPort(80)) should be true")
+	}
+
+	// TCPPort
+	if !IsValid(TCPPort(5432)) {
+		t.Error("IsValid(TCPPort(5432)) should be true")
+	}
+
+	// IndividualListenerPort
+	if !IsValid(IndividualListenerPort(9000)) {
+		t.Error("IsValid(IndividualListenerPort(9000)) should be true")
+	}
+}
+
+func TestIsPrivileged(t *testing.T) {
 	tests := []struct {
 		name string
-		port Port
+		port int
 		want bool
 	}{
 		{"zero is privileged", 0, true},
@@ -48,10 +78,25 @@ func TestPort_IsPrivileged(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.port.IsPrivileged(); got != tt.want {
-				t.Errorf("Port(%d).IsPrivileged() = %v, want %v", tt.port, got, tt.want)
+			if got := IsPrivileged(tt.port); got != tt.want {
+				t.Errorf("IsPrivileged(%d) = %v, want %v", tt.port, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIsPrivileged_WithSemanticTypes(t *testing.T) {
+	// LocalPort
+	if !IsPrivileged(LocalPort(80)) {
+		t.Error("IsPrivileged(LocalPort(80)) should be true")
+	}
+	if IsPrivileged(LocalPort(8080)) {
+		t.Error("IsPrivileged(LocalPort(8080)) should be false")
+	}
+
+	// ListenerPort
+	if !IsPrivileged(ListenerPort(443)) {
+		t.Error("IsPrivileged(ListenerPort(443)) should be true")
 	}
 }
 
@@ -88,6 +133,23 @@ func TestValidatePort(t *testing.T) {
 	}
 }
 
+func TestValidatePort_WithSemanticTypes(t *testing.T) {
+	// ListenerPort
+	if err := ValidatePort(ListenerPort(80), "listener_port", "config"); err != nil {
+		t.Errorf("ValidatePort(ListenerPort(80)) should succeed, got: %v", err)
+	}
+
+	// ServicePort
+	if err := ValidatePort(ServicePort(443), "port", "my-service"); err != nil {
+		t.Errorf("ValidatePort(ServicePort(443)) should succeed, got: %v", err)
+	}
+
+	// TCPPort
+	if err := ValidatePort(TCPPort(0), "target_port", "my-db"); err == nil {
+		t.Error("ValidatePort(TCPPort(0)) should fail")
+	}
+}
+
 func TestValidateRequiredPort(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -113,6 +175,17 @@ func TestValidateRequiredPort(t *testing.T) {
 				t.Errorf("ValidateRequiredPort() error = %v, want error containing %q", err, tt.errContains)
 			}
 		})
+	}
+}
+
+func TestValidateRequiredPort_WithSemanticTypes(t *testing.T) {
+	// TCPPort
+	if err := ValidateRequiredPort(TCPPort(5432), "target_port", "my-db"); err != nil {
+		t.Errorf("ValidateRequiredPort(TCPPort(5432)) should succeed, got: %v", err)
+	}
+
+	if err := ValidateRequiredPort(TCPPort(0), "target_port", "my-db"); err == nil {
+		t.Error("ValidateRequiredPort(TCPPort(0)) should fail")
 	}
 }
 
@@ -196,6 +269,25 @@ func TestWarnPrivilegedPort(t *testing.T) {
 	}
 }
 
+func TestWarnPrivilegedPort_WithSemanticTypes(t *testing.T) {
+	var buf bytes.Buffer
+	origWriter := warnWriter
+	SetWarnWriter(&buf)
+	defer SetWarnWriter(origWriter)
+
+	// ListenerPort
+	WarnPrivilegedPort(ListenerPort(80), "listener_port", "config")
+	if buf.Len() == 0 {
+		t.Error("WarnPrivilegedPort(ListenerPort(80)) should produce warning")
+	}
+
+	buf.Reset()
+	WarnPrivilegedPort(ListenerPort(8080), "listener_port", "config")
+	if buf.Len() > 0 {
+		t.Error("WarnPrivilegedPort(ListenerPort(8080)) should not produce warning")
+	}
+}
+
 func TestPortConflictChecker(t *testing.T) {
 	t.Run("no conflict", func(t *testing.T) {
 		var buf bytes.Buffer
@@ -255,18 +347,33 @@ func TestPortConflictChecker(t *testing.T) {
 	})
 }
 
+func TestPortConflictChecker_WithSemanticTypes(t *testing.T) {
+	var buf bytes.Buffer
+	origWriter := warnWriter
+	SetWarnWriter(&buf)
+	defer SetWarnWriter(origWriter)
+
+	checker := NewPortConflictChecker()
+	RegisterPort(checker, ListenerPort(80), "listener")
+	RegisterPort(checker, IndividualListenerPort(80), "individual-service")
+
+	if buf.Len() == 0 {
+		t.Error("Expected warning for port conflict between semantic types")
+	}
+}
+
 func TestFreeLocalPort(t *testing.T) {
-	port, err := FreeLocalPort()
+	localPort, err := FreeLocalPort()
 	if err != nil {
 		t.Fatalf("FreeLocalPort() error = %v", err)
 	}
 
-	if !port.IsValid() {
-		t.Errorf("FreeLocalPort() returned invalid port: %d", port)
+	if !IsValid(localPort) {
+		t.Errorf("FreeLocalPort() returned invalid port: %d", localPort)
 	}
 
-	if port.IsPrivileged() {
-		t.Errorf("FreeLocalPort() returned privileged port: %d", port)
+	if IsPrivileged(localPort) {
+		t.Errorf("FreeLocalPort() returned privileged port: %d", localPort)
 	}
 
 	anotherPort, err := FreeLocalPort()
@@ -274,7 +381,7 @@ func TestFreeLocalPort(t *testing.T) {
 		t.Fatalf("FreeLocalPort() second call error = %v", err)
 	}
 
-	if port == anotherPort {
+	if localPort == anotherPort {
 		t.Logf("Note: FreeLocalPort() returned same port twice (race condition, but possible)")
 	}
 }

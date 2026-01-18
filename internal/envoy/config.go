@@ -6,8 +6,8 @@ import "github.com/usadamasa/kubectl-localmesh/internal/port"
 type ServiceConfig struct {
 	Builder            interface{} // *KubernetesServiceBuilder または *TCPServiceBuilder
 	ClusterName        string
-	LocalPort          int
-	ResolvedRemotePort int // Kubernetesサービスの解決済みリモートポート（マッピング出力用）
+	LocalPort          port.LocalPort
+	ResolvedRemotePort port.ServicePort // Kubernetesサービスの解決済みリモートポート（マッピング出力用）
 }
 
 // BuildConfig は ServiceConfig のリストから Envoy 設定を生成
@@ -22,7 +22,7 @@ func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[st
 		// type switchで各ビルダーを処理
 		switch builder := cfg.Builder.(type) {
 		case *KubernetesServiceBuilder:
-			result := builder.Build(cfg.ClusterName, cfg.LocalPort, int(listenerPort))
+			result := builder.Build(cfg.ClusterName, int(cfg.LocalPort), int(listenerPort))
 			// 戻り値の型によって処理を分岐
 			switch components := result.(type) {
 			case HTTPComponents:
@@ -36,7 +36,7 @@ func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[st
 			}
 
 		case *TCPServiceBuilder:
-			components := builder.Build(cfg.ClusterName, cfg.LocalPort)
+			components := builder.Build(cfg.ClusterName, int(cfg.LocalPort))
 			clusters = append(clusters, components.Cluster)
 			tcpListeners = append(tcpListeners, components.Listener)
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 func TestStartGCPSSHTunnel_BasicFlow(t *testing.T) {
@@ -21,9 +22,9 @@ func TestStartGCPSSHTunnel_BasicFlow(t *testing.T) {
 		Project:  "test-project",
 	}
 
-	localPort := 10000
+	localPort := port.LocalPort(10000)
 	targetHost := "10.0.0.1"
-	targetPort := 5432
+	targetPort := port.TCPPort(5432)
 
 	// テスト用のモックを使用する予定
 	// 現時点では実装がないため、関数が存在することだけを確認
@@ -99,9 +100,9 @@ func TestBuildGcloudSSHCommand(t *testing.T) {
 	tests := []struct {
 		name       string
 		bastion    *config.SSHBastion
-		localPort  int
+		localPort  port.LocalPort
 		targetHost string
-		targetPort int
+		targetPort port.TCPPort
 		want       []string
 	}{
 		{

@@ -3,6 +3,8 @@ package log
 import (
 	"fmt"
 	"strings"
+
+	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
 // ServiceSummary はサービスのサマリー情報を表します。
@@ -16,11 +18,11 @@ type ServiceSummary struct {
 	// Backend はバックエンドの情報
 	Backend string
 	// ListenPort はリスナーポート（0の場合はデフォルトを使用）
-	ListenPort int
+	ListenPort port.ListenerPort
 }
 
 // EffectiveListenPort はListenPortが0の場合はデフォルトポートを返します。
-func (s ServiceSummary) EffectiveListenPort(defaultPort int) int {
+func (s ServiceSummary) EffectiveListenPort(defaultPort port.ListenerPort) port.ListenerPort {
 	if s.ListenPort > 0 {
 		return s.ListenPort
 	}
@@ -42,7 +44,7 @@ func formatProtocolLabel(protocol string) string {
 }
 
 // GenerateSummary はサービスメッシュ起動完了時のサマリーを生成します。
-func GenerateSummary(services []ServiceSummary, listenerPort int) string {
+func GenerateSummary(services []ServiceSummary, listenerPort port.ListenerPort) string {
 	var sb strings.Builder
 
 	sb.WriteString("\nService Mesh is ready!\n\n")
@@ -62,10 +64,10 @@ func GenerateSummary(services []ServiceSummary, listenerPort int) string {
 	if len(httpServices) > 0 {
 		sb.WriteString("  HTTP/gRPC Services:\n")
 		for _, svc := range httpServices {
-			port := svc.EffectiveListenPort(listenerPort)
+			p := svc.EffectiveListenPort(listenerPort)
 			protocolLabel := formatProtocolLabel(svc.Protocol)
 			sb.WriteString(fmt.Sprintf("  • http://%s:%d (%s) -> %s\n",
-				svc.Host, port, protocolLabel, svc.Backend))
+				svc.Host, p, protocolLabel, svc.Backend))
 		}
 		sb.WriteString("\n")
 	}
@@ -74,9 +76,9 @@ func GenerateSummary(services []ServiceSummary, listenerPort int) string {
 	if len(tcpServices) > 0 {
 		sb.WriteString("  TCP Services:\n")
 		for _, svc := range tcpServices {
-			port := svc.EffectiveListenPort(listenerPort)
+			p := svc.EffectiveListenPort(listenerPort)
 			sb.WriteString(fmt.Sprintf("  • tcp://%s:%d -> %s\n",
-				svc.Host, port, svc.Backend))
+				svc.Host, p, svc.Backend))
 		}
 		sb.WriteString("\n")
 	}
