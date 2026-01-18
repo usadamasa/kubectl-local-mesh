@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.3.1](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.0...v0.3.1) - 2026-01-18
+### Bug Fixes 🐛
+- fix: Envoy domainsにhost:port形式を追加してgRPCクライアント互換性を改善 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/62
+### Other Changes
+- refactor: Portをジェネリック型制約に変更しキャスト削減 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/64
+
 ## [v0.3.0](https://github.com/usadamasa/kubectl-localmesh/compare/v0.2.1...v0.3.0) - 2026-01-17
 ### New Features 🎉
 - feat: support overwrite_listen_port by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/56
