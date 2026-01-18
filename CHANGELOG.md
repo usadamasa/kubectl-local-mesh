@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.3.2](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.1...v0.3.2) - 2026-01-18
+### New Features 🎉
+- feat: loopback IPエイリアスによるTCPサービスの同一ポート対応 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/66
+
 ## [v0.3.1](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.0...v0.3.1) - 2026-01-18
 ### Bug Fixes 🐛
 - fix: Envoy domainsにhost:port形式を追加してgRPCクライアント互換性を改善 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/62
