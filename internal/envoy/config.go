@@ -22,7 +22,7 @@ func BuildConfig(listenerPort port.ListenerPort, configs []ServiceConfig) map[st
 		// type switchで各ビルダーを処理
 		switch builder := cfg.Builder.(type) {
 		case *KubernetesServiceBuilder:
-			result := builder.Build(cfg.ClusterName, cfg.LocalPort)
+			result := builder.Build(cfg.ClusterName, cfg.LocalPort, int(listenerPort))
 			// 戻り値の型によって処理を分岐
 			switch components := result.(type) {
 			case HTTPComponents:

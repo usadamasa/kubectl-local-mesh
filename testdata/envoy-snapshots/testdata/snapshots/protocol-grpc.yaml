@@ -49,6 +49,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - grpc.localhost
+                                - grpc.localhost:80
                               name: default_grpc_service_9090
                               routes:
                                 - match:

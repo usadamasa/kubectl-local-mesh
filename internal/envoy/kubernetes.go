@@ -37,7 +37,8 @@ func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portNam
 // Build はサービスの設定コンポーネントを生成
 // OverwriteListenPortsが指定されている場合はIndividualListenerComponentsを返す
 // 指定されていない場合はHTTPComponentsを返す
-func (b *KubernetesServiceBuilder) Build(clusterName string, localPort int) any {
+// listenerPortは共通HTTPリスナーのポート番号（domainsに host:port を含めるため）
+func (b *KubernetesServiceBuilder) Build(clusterName string, localPort int, listenerPort int) any {
 	// クラスタ設定
 	cluster := b.buildCluster(clusterName, localPort)
 
@@ -54,9 +55,13 @@ func (b *KubernetesServiceBuilder) Build(clusterName string, localPort int) any 
 	}
 
 	// HTTPルート設定（従来動作）
+	// gRPCクライアントは:authorityヘッダーにhost:port形式で送信するため、両方のパターンを許可
 	httpRoute := map[string]any{
-		"name":    clusterName,
-		"domains": []any{b.Host},
+		"name": clusterName,
+		"domains": []any{
+			b.Host,
+			fmt.Sprintf("%s:%d", b.Host, listenerPort),
+		},
 		"routes": []any{
 			map[string]any{
 				"match": map[string]any{"prefix": "/"},
@@ -136,8 +141,11 @@ func (b *KubernetesServiceBuilder) buildIndividualListener(clusterName string, l
 			"name": fmt.Sprintf("route_%s_%d", clusterName, listenPort),
 			"virtual_hosts": []any{
 				map[string]any{
-					"name":    clusterName,
-					"domains": []any{b.Host, "*"},
+					"name": clusterName,
+					"domains": []any{
+						b.Host,
+						fmt.Sprintf("%s:%d", b.Host, listenPort),
+					},
 					"routes": []any{
 						map[string]any{
 							"match": map[string]any{"prefix": "/"},

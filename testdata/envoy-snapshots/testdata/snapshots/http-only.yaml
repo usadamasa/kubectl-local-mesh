@@ -49,6 +49,7 @@ static_resources:
                         virtual_hosts:
                             - domains:
                                 - api.localhost
+                                - api.localhost:80
                               name: default_api_8080
                               routes:
                                 - match:
