@@ -9,6 +9,7 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
+	"github.com/usadamasa/kubectl-localmesh/internal/loopback"
 	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
@@ -18,6 +19,9 @@ type DumpVisitor struct {
 	clientset *kubernetes.Clientset
 	mockCfg   *config.MockConfig
 	idx       int
+
+	// loopback IPアロケータ（TCPサービス用）
+	ipAllocator *loopback.IPAllocator
 
 	// 結果
 	serviceConfigs []envoy.ServiceConfig
@@ -33,6 +37,7 @@ func NewDumpVisitor(
 		ctx:            ctx,
 		clientset:      clientset,
 		mockCfg:        mockCfg,
+		ipAllocator:    loopback.NewIPAllocator(),
 		serviceConfigs: make([]envoy.ServiceConfig, 0),
 	}
 }
@@ -87,7 +92,13 @@ func (v *DumpVisitor) VisitTCP(s *config.TCPService) error {
 	dummyLocalPort := port.LocalPort(10000 + v.idx)
 	clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
-	builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, s.SSHBastion, s.TargetHost, s.TargetPort)
+	// loopback IP割り当て（ダンプ用でも同一ポート重複を回避）
+	listenAddr, err := v.ipAllocator.Allocate()
+	if err != nil {
+		return fmt.Errorf("failed to allocate loopback IP for service '%s': %w", s.Host, err)
+	}
+
+	builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, listenAddr, s.SSHBastion, s.TargetHost, s.TargetPort)
 
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{
 		Builder:     builder,

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -943,6 +944,58 @@ func TestTCPService_ValidateEdgeCases(t *testing.T) {
 			}
 			if tt.wantErr && err != nil && !containsString(err.Error(), tt.errMsg) {
 				t.Errorf("expected error containing '%s', got '%s'", tt.errMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestTCPService_Validate_LocalhostWarning(t *testing.T) {
+	// macOSでは.localhostサブドメインが/etc/hostsを無視して127.0.0.1に解決されるため警告を出す
+	cfg := &Config{
+		SSHBastions: map[string]*SSHBastion{
+			"primary": {Instance: "test", Zone: "zone", Project: "proj"},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		host           string
+		expectsWarning bool
+	}{
+		{"db.localhost triggers warning", "db.localhost", true},
+		{"db.sub.localhost triggers warning", "db.sub.localhost", true},
+		{"db.localdomain no warning", "db.localdomain", false},
+		{"db.local no warning", "db.local", false},
+		{"localhost itself no warning", "localhost", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			origWriter := port.WarnWriter()
+			port.SetWarnWriter(&buf)
+			defer port.SetWarnWriter(origWriter)
+
+			svc := &TCPService{
+				Host:       tt.host,
+				SSHBastion: "primary",
+				TargetHost: "10.0.0.1",
+				TargetPort: 5432,
+			}
+			_ = svc.Validate(cfg)
+
+			hasWarning := buf.Len() > 0
+			if hasWarning != tt.expectsWarning {
+				t.Errorf("host=%s: hasWarning=%v, expectsWarning=%v, output=%q",
+					tt.host, hasWarning, tt.expectsWarning, buf.String())
+			}
+			if tt.expectsWarning && hasWarning {
+				if !containsString(buf.String(), ".localhost") {
+					t.Errorf("warning should mention .localhost, got: %s", buf.String())
+				}
+				if !containsString(buf.String(), "macOS") {
+					t.Errorf("warning should mention macOS, got: %s", buf.String())
+				}
 			}
 		})
 	}

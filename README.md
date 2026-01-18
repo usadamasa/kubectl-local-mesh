@@ -97,6 +97,8 @@ brew install envoy
 gcloud auth application-default login
 ```
 
+> **macOS TCP Support:** When running multiple TCP services (e.g., multiple databases on port 5432), kubectl-localmesh automatically assigns loopback IP aliases (127.0.0.x) using `ifconfig lo0 alias`. This requires `sudo` and is automatically cleaned up on exit.
+
 ## Usage
 
 ### Configuration file

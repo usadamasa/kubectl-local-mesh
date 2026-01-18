@@ -279,3 +279,4 @@ curl http://users-api.localhost/problematic-endpoint
 
 - `go-taskfile-workflow`: ビルドとテスト
 - `kubectl-envoy-debugging`: Envoy設定の確認とデバッグ
+- `kubectl-localmesh-macos-localhost`: macOSの.localhostドメインの挙動

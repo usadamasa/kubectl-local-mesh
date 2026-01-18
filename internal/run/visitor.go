@@ -13,6 +13,7 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/gcp"
 	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
+	"github.com/usadamasa/kubectl-localmesh/internal/loopback"
 	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
@@ -23,6 +24,12 @@ type RunVisitor struct {
 	clientset  *kubernetes.Clientset
 	restConfig *rest.Config
 	logger     *log.Logger
+
+	// loopback IPアロケータ（TCPサービス用）
+	ipAllocator *loopback.IPAllocator
+
+	// ポート競合チェッカー（TCPサービス用）
+	portChecker *port.PortConflictChecker
 
 	// 結果
 	serviceConfigs   []envoy.ServiceConfig
@@ -43,6 +50,8 @@ func NewRunVisitor(
 		clientset:        clientset,
 		restConfig:       restConfig,
 		logger:           logger,
+		ipAllocator:      loopback.NewIPAllocator(),
+		portChecker:      port.NewPortConflictChecker(),
 		serviceConfigs:   make([]envoy.ServiceConfig, 0),
 		serviceSummaries: make([]log.ServiceSummary, 0),
 	}
@@ -140,17 +149,31 @@ func (v *RunVisitor) VisitTCP(s *config.TCPService) error {
 	}
 	clusterName := sanitize(fmt.Sprintf("tcp_%s_%s_%d", s.SSHBastion, s.TargetHost, s.TargetPort))
 
+	// loopback IP割り当て（同一ポート重複を回避）
+	listenAddr, err := v.ipAllocator.Allocate()
+	if err != nil {
+		return fmt.Errorf("failed to allocate loopback IP for service '%s': %w", s.Host, err)
+	}
+
+	// ポート競合チェック（IP:port の組み合わせでチェック）
+	listenPort := s.ListenPort
+	if listenPort == 0 {
+		listenPort = s.TargetPort
+	}
+	v.portChecker.RegisterWithAddr(listenAddr, int(listenPort), s.Host)
+
 	// ビルダー構築
-	builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, s.SSHBastion, s.TargetHost, s.TargetPort)
+	builder := envoy.NewTCPServiceBuilder(s.Host, s.ListenPort, listenAddr, s.SSHBastion, s.TargetHost, s.TargetPort)
 
 	v.logger.Debugf(
-		"gcp-ssh: %-30s -> %s (instance=%s, zone=%s) -> %s:%d via 127.0.0.1:%d",
+		"gcp-ssh: %-30s -> %s (instance=%s, zone=%s) -> %s:%d via %s:%d",
 		s.Host,
 		s.SSHBastion,
 		bastion.Instance,
 		bastion.Zone,
 		s.TargetHost,
 		s.TargetPort,
+		listenAddr,
 		localPort,
 	)
 
@@ -197,4 +220,9 @@ func (v *RunVisitor) GetServiceConfigs() []envoy.ServiceConfig {
 // GetServiceSummaries は収集した ServiceSummary を返す
 func (v *RunVisitor) GetServiceSummaries() []log.ServiceSummary {
 	return v.serviceSummaries
+}
+
+// GetIPAllocator はIPアロケータを返す（エイリアス管理用）
+func (v *RunVisitor) GetIPAllocator() *loopback.IPAllocator {
+	return v.ipAllocator
 }

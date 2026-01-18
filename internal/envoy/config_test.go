@@ -52,6 +52,7 @@ func TestBuildConfig_TCPOnly(t *testing.T) {
 	// TCPのみの設定
 	builder := NewTCPServiceBuilder(
 		"db.localhost", 5432,
+		"127.0.0.2", // ListenAddr
 		"primary", "10.0.0.1", 5432,
 	)
 	configs := []ServiceConfig{
@@ -113,6 +114,7 @@ func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 		{
 			Builder: NewTCPServiceBuilder(
 				"db.localhost", 5432,
+				"127.0.0.2", // ListenAddr
 				"primary", "10.0.0.1", 5432,
 			),
 			ClusterName: "db_cluster",
@@ -121,6 +123,7 @@ func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 		{
 			Builder: NewTCPServiceBuilder(
 				"cache.localhost", 6379,
+				"127.0.0.3", // ListenAddr
 				"primary", "10.0.0.2", 6379,
 			),
 			ClusterName: "cache_cluster",
@@ -156,11 +159,12 @@ func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 }
 
 func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
-	// 同じポート番号を持つ複数のTCPサービス（エラーケース）
+	// 同じポート番号を持つ複数のTCPサービス（異なるListenAddrで回避）
 	configs := []ServiceConfig{
 		{
 			Builder: NewTCPServiceBuilder(
 				"db1.localhost", 5432,
+				"127.0.0.2", // ListenAddr
 				"primary", "10.0.0.1", 5432,
 			),
 			ClusterName: "db1_cluster",
@@ -168,7 +172,8 @@ func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
 		},
 		{
 			Builder: NewTCPServiceBuilder(
-				"db2.localhost", 5432, // 重複
+				"db2.localhost", 5432, // 同じポートだがListenAddrが異なる
+				"127.0.0.3", // ListenAddr
 				"primary", "10.0.0.2", 5432,
 			),
 			ClusterName: "db2_cluster",
@@ -176,7 +181,6 @@ func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
 		},
 	}
 
-	// 現時点ではエラーチェックなし（将来的に追加する可能性）
 	cfg := BuildConfig(80, configs)
 
 	staticRes, ok := cfg["static_resources"].(map[string]any)
@@ -189,9 +193,23 @@ func TestBuildConfig_MultipleTCPSamePort(t *testing.T) {
 		t.Fatal("listeners not found")
 	}
 
-	// 2つのリスナーが作成される（ポート重複は警告すべきだが、現時点では許容）
+	// 2つのリスナーが作成される（異なるListenAddrなのでポート重複を回避）
 	if len(listeners) != 2 {
 		t.Errorf("expected 2 listeners, got %d", len(listeners))
+	}
+
+	// 各リスナーのアドレスが異なることを確認
+	for i, l := range listeners {
+		listener := l.(map[string]any)
+		address := listener["address"].(map[string]any)
+		socketAddr := address["socket_address"].(map[string]any)
+		expectedAddr := "127.0.0.2"
+		if i == 1 {
+			expectedAddr = "127.0.0.3"
+		}
+		if socketAddr["address"] != expectedAddr {
+			t.Errorf("listener %d: expected address %s, got %v", i, expectedAddr, socketAddr["address"])
+		}
 	}
 }
 

@@ -210,6 +210,9 @@ func (t *TCPService) Validate(cfg *Config) error {
 	// 特権ポート警告
 	port.WarnPrivilegedPort(t.ListenPort, "listen_port", t.Host)
 
+	// .localhostドメイン警告（macOSで問題になる）
+	port.WarnLocalhostTLD(t.Host, t.Host)
+
 	return nil
 }
 
@@ -256,6 +259,10 @@ func Load(path string) (*Config, error) {
 	}
 
 	// ポート競合チェック
+	// 注意: TCPサービスはここではチェックしない
+	// TCPサービスは実行時にloopback IPが割り当てられるため、
+	// 同じポートでも異なるIPにバインドされ競合しない
+	// （visitor.goでIP割り当て後にチェックする）
 	checker := port.NewPortConflictChecker()
 	port.RegisterPort(checker, cfg.ListenerPort, "listener_port")
 
@@ -266,8 +273,8 @@ func Load(path string) (*Config, error) {
 			for _, p := range s.OverwriteListenPorts {
 				port.RegisterPort(checker, p, s.Host)
 			}
-		case *TCPService:
-			port.RegisterPort(checker, s.ListenPort, s.Host)
+			// TCPService は実行時にloopback IPが割り当てられてから
+			// visitor.go でチェックするため、ここではスキップ
 		}
 	}
 

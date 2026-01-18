@@ -12,6 +12,12 @@ var hostsFile = "/etc/hosts"
 const markerStart = "# kubectl-localmesh: managed by kubectl-localmesh"
 const markerEnd = "# kubectl-localmesh: end"
 
+// HostEntry はホスト名とIPアドレスのペアを表す
+type HostEntry struct {
+	Hostname string
+	IP       string
+}
+
 // HasPermission checks if we can write to /etc/hosts
 func HasPermission() bool {
 	// /etc/hostsへの書き込み権限チェック
@@ -21,6 +27,46 @@ func HasPermission() bool {
 	}
 	_ = f.Close()
 	return true
+}
+
+// AddEntriesWithIPs adds hostname entries with specific IP addresses to /etc/hosts
+func AddEntriesWithIPs(entries []HostEntry) error {
+	// 1. ファイル状態を検証
+	state, err := validateHostsFile()
+	if err != nil {
+		return fmt.Errorf("failed to validate /etc/hosts: %w", err)
+	}
+
+	// 2. 無効状態の場合はエラーを返す
+	if !state.isValid {
+		return newHostsFileCorruptedError(state)
+	}
+
+	// 3. 現在のファイル内容を読み込み、正規化
+	lines, err := readAndNormalizeFile()
+	if err != nil {
+		return err
+	}
+
+	// ファイルが空でない場合、1行の空行で区切る
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+
+	// マーカー開始（直接追加、先頭に改行を入れない）
+	lines = append(lines, markerStart)
+
+	// 各エントリを追加
+	for _, entry := range entries {
+		line := fmt.Sprintf("%s %s", entry.IP, entry.Hostname)
+		lines = append(lines, line)
+	}
+
+	// マーカー終了
+	lines = append(lines, markerEnd)
+
+	// ファイルに書き込み
+	return writeLinesToFile(lines)
 }
 
 // AddEntries adds hostname entries to /etc/hosts

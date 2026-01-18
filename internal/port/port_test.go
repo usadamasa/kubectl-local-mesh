@@ -362,6 +362,71 @@ func TestPortConflictChecker_WithSemanticTypes(t *testing.T) {
 	}
 }
 
+func TestPortConflictChecker_WithAddr(t *testing.T) {
+	t.Run("same port different IP - no conflict", func(t *testing.T) {
+		var buf bytes.Buffer
+		origWriter := warnWriter
+		SetWarnWriter(&buf)
+		defer SetWarnWriter(origWriter)
+
+		checker := NewPortConflictChecker()
+		checker.RegisterWithAddr("127.0.0.2", 5432, "db1.localhost")
+		checker.RegisterWithAddr("127.0.0.3", 5432, "db2.localhost")
+
+		if buf.Len() > 0 {
+			t.Errorf("Expected no warning for same port on different IPs, got: %s", buf.String())
+		}
+	})
+
+	t.Run("same IP and port - conflict", func(t *testing.T) {
+		var buf bytes.Buffer
+		origWriter := warnWriter
+		SetWarnWriter(&buf)
+		defer SetWarnWriter(origWriter)
+
+		checker := NewPortConflictChecker()
+		checker.RegisterWithAddr("127.0.0.2", 5432, "db1.localhost")
+		checker.RegisterWithAddr("127.0.0.2", 5432, "db2.localhost")
+
+		if buf.Len() == 0 {
+			t.Error("Expected warning for same IP:port conflict")
+		}
+		if !strings.Contains(buf.String(), "127.0.0.2:5432") {
+			t.Errorf("Warning should contain '127.0.0.2:5432', got: %s", buf.String())
+		}
+	})
+
+	t.Run("empty addr falls back to port-only check", func(t *testing.T) {
+		var buf bytes.Buffer
+		origWriter := warnWriter
+		SetWarnWriter(&buf)
+		defer SetWarnWriter(origWriter)
+
+		checker := NewPortConflictChecker()
+		checker.RegisterWithAddr("", 80, "service-a")
+		checker.RegisterWithAddr("", 80, "service-b")
+
+		if buf.Len() == 0 {
+			t.Error("Expected warning for port conflict when addr is empty")
+		}
+	})
+
+	t.Run("0.0.0.0 conflicts with any IP on same port", func(t *testing.T) {
+		var buf bytes.Buffer
+		origWriter := warnWriter
+		SetWarnWriter(&buf)
+		defer SetWarnWriter(origWriter)
+
+		checker := NewPortConflictChecker()
+		checker.RegisterWithAddr("0.0.0.0", 80, "http-listener")
+		checker.RegisterWithAddr("127.0.0.2", 80, "tcp-service")
+
+		if buf.Len() == 0 {
+			t.Error("Expected warning: 0.0.0.0 binds to all interfaces and conflicts with specific IP")
+		}
+	})
+}
+
 func TestFreeLocalPort(t *testing.T) {
 	localPort, err := FreeLocalPort()
 	if err != nil {
