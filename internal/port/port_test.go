@@ -214,13 +214,13 @@ func TestValidatePorts(t *testing.T) {
 
 func TestValidatePorts_GenericType(t *testing.T) {
 	ports := []IndividualListenerPort{80, 443, 8080}
-	err := ValidatePorts(ports, "overwrite_listen_ports", "my-service")
+	err := ValidatePorts(ports, "listener_port", "my-service")
 	if err != nil {
 		t.Errorf("ValidatePorts() with IndividualListenerPort should succeed, got error: %v", err)
 	}
 
 	invalidPorts := []IndividualListenerPort{80, 0, 8080}
-	err = ValidatePorts(invalidPorts, "overwrite_listen_ports", "my-service")
+	err = ValidatePorts(invalidPorts, "listener_port", "my-service")
 	if err == nil {
 		t.Error("ValidatePorts() with invalid IndividualListenerPort should fail")
 	}

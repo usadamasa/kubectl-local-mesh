@@ -37,13 +37,13 @@ type ServiceDefinition struct {
 
 // KubernetesService はKubernetes Service（HTTP/gRPC）を表現
 type KubernetesService struct {
-	Host                 string                        `yaml:"host"`
-	Namespace            string                        `yaml:"namespace"`
-	Service              string                        `yaml:"service"`
-	PortName             string                        `yaml:"port_name,omitempty"`
-	Port                 port.ServicePort              `yaml:"port,omitempty"`
-	Protocol             string                        `yaml:"protocol"`                         // http|http2|grpc
-	OverwriteListenPorts []port.IndividualListenerPort `yaml:"overwrite_listen_ports,omitempty"` // 個別リスナーポート（指定時はHTTPリスナーを上書き）
+	Host         string            `yaml:"host"`
+	Namespace    string            `yaml:"namespace"`
+	Service      string            `yaml:"service"`
+	PortName     string            `yaml:"port_name,omitempty"`
+	Port         port.ServicePort  `yaml:"port,omitempty"`
+	Protocol     string            `yaml:"protocol"`                // http|http2|grpc
+	ListenerPort port.ListenerPort `yaml:"listener_port,omitempty"` // 個別リスナーポート（指定時はHTTPリスナーを上書き）
 }
 
 // TCPService はGCP SSH Bastion経由のTCP接続を表現
@@ -170,14 +170,12 @@ func (k *KubernetesService) Validate(cfg *Config) error {
 		return fmt.Errorf("protocol must be 'http', 'http2', or 'grpc' for kubernetes service '%s', got '%s'", k.Host, k.Protocol)
 	}
 
-	// OverwriteListenPortsのバリデーション（共通関数使用）
-	if err := port.ValidatePorts(k.OverwriteListenPorts, "overwrite_listen_ports", k.Host); err != nil {
-		return err
-	}
-
-	// 特権ポート警告
-	for _, p := range k.OverwriteListenPorts {
-		port.WarnPrivilegedPort(p, "overwrite_listen_ports", k.Host)
+	// ListenerPortのバリデーション（共通関数使用）
+	if k.ListenerPort != 0 {
+		if err := port.ValidatePort(k.ListenerPort, "listener_port", k.Host); err != nil {
+			return err
+		}
+		port.WarnPrivilegedPort(k.ListenerPort, "listener_port", k.Host)
 	}
 
 	return nil
@@ -270,8 +268,8 @@ func Load(path string) (*Config, error) {
 		svc := svcDef.Get()
 		switch s := svc.(type) {
 		case *KubernetesService:
-			for _, p := range s.OverwriteListenPorts {
-				port.RegisterPort(checker, p, s.Host)
+			if s.ListenerPort != 0 {
+				port.RegisterPort(checker, s.ListenerPort, s.Host)
 			}
 			// TCPService は実行時にloopback IPが割り当てられてから
 			// visitor.go でチェックするため、ここではスキップ

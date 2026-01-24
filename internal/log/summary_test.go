@@ -160,7 +160,7 @@ func TestGenerateSummary_OverwriteListenPort(t *testing.T) {
 
 	result := GenerateSummary(services, 80)
 
-	// overwrite_listen_portsで指定されたポートが使われるべき
+	// listener_portで指定されたポートが使われるべき
 	if !strings.Contains(result, "http://special-api.localhost:9090") {
 		t.Errorf("missing overwritten listen port in summary:\n%s", result)
 	}

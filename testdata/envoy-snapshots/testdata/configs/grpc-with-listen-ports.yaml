@@ -7,5 +7,4 @@ services:
     service: grpc-svc
     port_name: grpc
     protocol: grpc
-    overwrite_listen_ports:
-      - 50051
+    listener_port: 50051

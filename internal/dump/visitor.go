@@ -73,7 +73,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
 	builder := envoy.NewKubernetesServiceBuilder(
-		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.OverwriteListenPorts,
+		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort,
 	)
 
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{

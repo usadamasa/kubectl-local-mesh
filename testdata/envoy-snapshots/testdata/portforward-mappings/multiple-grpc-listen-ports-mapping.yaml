@@ -6,9 +6,7 @@ services:
       service: grpc1-svc
       resolved_remote_port: 50051
       assigned_local_port: 10000
-      assigned_listener_ports:
-        - 50051
-        - 50052
+      assigned_listener_port: 50051
       envoy_cluster_name: default_grpc1_svc_50051
     - kind: kubernetes
       host: grpc2.localhost
@@ -17,8 +15,7 @@ services:
       service: grpc2-svc
       resolved_remote_port: 51051
       assigned_local_port: 10001
-      assigned_listener_ports:
-        - 51051
+      assigned_listener_port: 51051
       envoy_cluster_name: default_grpc2_svc_51051
     - kind: kubernetes
       host: legacy-grpc.localhost
