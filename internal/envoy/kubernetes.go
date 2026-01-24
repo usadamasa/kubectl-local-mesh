@@ -8,9 +8,9 @@ import (
 
 // KubernetesServiceBuilder はKubernetes Service用のEnvoy設定ビルダー
 type KubernetesServiceBuilder struct {
-	Host                 string
-	Protocol             string                        // http|http2|grpc
-	OverwriteListenPorts []port.IndividualListenerPort // 個別リスナーポート（省略時はHTTPリスナーに統合）
+	Host                string
+	Protocol            string                      // http|http2|grpc
+	OverwriteListenPort port.IndividualListenerPort // 個別リスナーポート（省略時はHTTPリスナーに統合）
 	// メタデータ（ログ・診断用、Envoy設定生成には使用しない）
 	Namespace   string
 	ServiceName string
@@ -19,38 +19,35 @@ type KubernetesServiceBuilder struct {
 }
 
 // NewKubernetesServiceBuilder はKubernetesServiceBuilderを生成
-func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, p port.ServicePort, listenPorts []port.IndividualListenerPort) *KubernetesServiceBuilder {
+func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, p port.ServicePort, listenerPort port.IndividualListenerPort) *KubernetesServiceBuilder {
 	if protocol == "" {
 		protocol = "http" // デフォルトHTTP/1.1
 	}
 	return &KubernetesServiceBuilder{
-		Host:                 host,
-		Protocol:             protocol,
-		OverwriteListenPorts: listenPorts,
-		Namespace:            namespace,
-		ServiceName:          serviceName,
-		PortName:             portName,
-		Port:                 p,
+		Host:                host,
+		Protocol:            protocol,
+		OverwriteListenPort: listenerPort,
+		Namespace:           namespace,
+		ServiceName:         serviceName,
+		PortName:            portName,
+		Port:                p,
 	}
 }
 
 // Build はサービスの設定コンポーネントを生成
-// OverwriteListenPortsが指定されている場合はIndividualListenerComponentsを返す
+// OverwriteListenPortが指定されている場合はIndividualListenerComponentsを返す
 // 指定されていない場合はHTTPComponentsを返す
 // listenerPortは共通HTTPリスナーのポート番号（domainsに host:port を含めるため）
 func (b *KubernetesServiceBuilder) Build(clusterName string, localPort int, listenerPort int) any {
 	// クラスタ設定
 	cluster := b.buildCluster(clusterName, localPort)
 
-	// OverwriteListenPortsがある場合は個別リスナーを生成
-	if len(b.OverwriteListenPorts) > 0 {
-		listeners := make([]map[string]any, len(b.OverwriteListenPorts))
-		for i, listenPort := range b.OverwriteListenPorts {
-			listeners[i] = b.buildIndividualListener(clusterName, listenPort, i)
-		}
+	// OverwriteListenPortがある場合は個別リスナーを生成
+	if b.OverwriteListenPort != 0 {
+		listener := b.buildIndividualListener(clusterName, b.OverwriteListenPort, 0)
 		return IndividualListenerComponents{
 			Cluster:   cluster,
-			Listeners: listeners,
+			Listeners: []map[string]any{listener},
 		}
 	}
 

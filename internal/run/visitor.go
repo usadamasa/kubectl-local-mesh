@@ -81,7 +81,7 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 
 	// ビルダー構築
 	builder := envoy.NewKubernetesServiceBuilder(
-		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.OverwriteListenPorts,
+		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort,
 	)
 
 	v.logger.Debugf(
@@ -95,8 +95,8 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 
 	// ServiceSummaryを追加
 	var listenPort port.ListenerPort
-	if len(s.OverwriteListenPorts) > 0 {
-		listenPort = port.ListenerPort(s.OverwriteListenPorts[0])
+	if s.ListenerPort != 0 {
+		listenPort = s.ListenerPort
 	}
 	v.serviceSummaries = append(v.serviceSummaries, log.ServiceSummary{
 		Host:        s.Host,

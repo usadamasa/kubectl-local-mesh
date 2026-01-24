@@ -24,8 +24,8 @@ type ServicePort int
 // TCPPort はTCP接続のポート番号（target_port, listen_port）
 type TCPPort int
 
-// IndividualListenerPort は個別リスナーのポート番号
-type IndividualListenerPort int
+// IndividualListenerPort は個別リスナーのポート番号（ListenerPortのエイリアス）
+type IndividualListenerPort = ListenerPort
 
 const (
 	minPort           = 1

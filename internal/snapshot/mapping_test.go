@@ -142,7 +142,7 @@ func TestPortForwardMappingSet_YAML(t *testing.T) {
 func TestBuildMappings(t *testing.T) {
 	t.Run("kubernetes services", func(t *testing.T) {
 		builder := envoy.NewKubernetesServiceBuilder(
-			"api.localhost", "http", "default", "api", "http", 0, nil,
+			"api.localhost", "http", "default", "api", "http", 0, 0,
 		)
 		configs := []envoy.ServiceConfig{
 			{
@@ -170,10 +170,10 @@ func TestBuildMappings(t *testing.T) {
 		assertEqual(t, "default_api_8080", m.EnvoyClusterName)
 	})
 
-	t.Run("kubernetes services with overwrite_listen_ports", func(t *testing.T) {
+	t.Run("kubernetes services with listener_port", func(t *testing.T) {
 		builder := envoy.NewKubernetesServiceBuilder(
 			"grpc.localhost", "grpc", "default", "grpc-service", "grpc", 0,
-			[]port.IndividualListenerPort{8081, 8082},
+			port.IndividualListenerPort(8081),
 		)
 		configs := []envoy.ServiceConfig{
 			{
@@ -194,12 +194,8 @@ func TestBuildMappings(t *testing.T) {
 		assertEqual(t, "kubernetes", m.Kind)
 		assertEqual(t, "grpc.localhost", m.Host)
 		assertEqual(t, "grpc", m.Protocol)
-		// OverwriteListenPortsはAssignedListenerPortsに記録
-		if len(m.AssignedListenerPorts) != 2 {
-			t.Fatalf("expected 2 listener ports, got %d", len(m.AssignedListenerPorts))
-		}
-		assertEqual(t, 8081, m.AssignedListenerPorts[0])
-		assertEqual(t, 8082, m.AssignedListenerPorts[1])
+		// OverwriteListenPortはAssignedListenerPortに記録
+		assertEqual(t, 8081, m.AssignedListenerPort)
 	})
 
 	t.Run("tcp services", func(t *testing.T) {
@@ -234,7 +230,7 @@ func TestBuildMappings(t *testing.T) {
 
 	t.Run("mixed services", func(t *testing.T) {
 		k8sBuilder := envoy.NewKubernetesServiceBuilder(
-			"api.localhost", "http", "default", "api", "http", 0, nil,
+			"api.localhost", "http", "default", "api", "http", 0, 0,
 		)
 		tcpBuilder := envoy.NewTCPServiceBuilder(
 			"db.localhost", 5432, "127.0.0.2", "primary", "10.0.0.1", 5432,

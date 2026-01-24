@@ -7,11 +7,11 @@ import (
 )
 
 func TestKubernetesServiceBuilder_Build_HTTPRoute(t *testing.T) {
-	// OverwriteListenPortsなし → HTTPComponents（従来動作）
+	// OverwriteListenPortなし → HTTPComponents（従来動作）
 	builder := NewKubernetesServiceBuilder(
 		"api.localhost", "http",
 		"default", "api", "http", 8080,
-		nil, // OverwriteListenPorts
+		0, // OverwriteListenPort
 	)
 
 	result := builder.Build("api_cluster", 10001, 80)
@@ -33,12 +33,12 @@ func TestKubernetesServiceBuilder_Build_HTTPRoute(t *testing.T) {
 	}
 }
 
-func TestKubernetesServiceBuilder_Build_WithOverwriteListenPorts(t *testing.T) {
-	// OverwriteListenPortsあり → IndividualListenerComponents（個別リスナー）
+func TestKubernetesServiceBuilder_Build_WithOverwriteListenPort(t *testing.T) {
+	// OverwriteListenPortあり → IndividualListenerComponents（個別リスナー）
 	builder := NewKubernetesServiceBuilder(
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
-		[]port.IndividualListenerPort{50051, 50052},
+		port.IndividualListenerPort(50051),
 	)
 
 	result := builder.Build("grpc_cluster", 10001, 80)
@@ -54,38 +54,6 @@ func TestKubernetesServiceBuilder_Build_WithOverwriteListenPorts(t *testing.T) {
 		t.Errorf("expected cluster name 'grpc_cluster', got %v", listenerComponents.Cluster["name"])
 	}
 
-	// リスナーが2つあることを確認
-	if len(listenerComponents.Listeners) != 2 {
-		t.Errorf("expected 2 listeners, got %d", len(listenerComponents.Listeners))
-	}
-
-	// 各リスナーのポート確認
-	expectedPorts := []port.IndividualListenerPort{50051, 50052}
-	for i, listener := range listenerComponents.Listeners {
-		address := listener["address"].(map[string]any)
-		socketAddr := address["socket_address"].(map[string]any)
-		portVal := socketAddr["port_value"].(int)
-		if portVal != int(expectedPorts[i]) {
-			t.Errorf("expected listener %d port %d, got %d", i, expectedPorts[i], portVal)
-		}
-	}
-}
-
-func TestKubernetesServiceBuilder_Build_SingleListenPort(t *testing.T) {
-	// OverwriteListenPorts 1つ → IndividualListenerComponents
-	builder := NewKubernetesServiceBuilder(
-		"grpc.localhost", "grpc",
-		"default", "grpc-service", "grpc", 50051,
-		[]port.IndividualListenerPort{50051},
-	)
-
-	result := builder.Build("grpc_cluster", 10001, 80)
-
-	listenerComponents, ok := result.(IndividualListenerComponents)
-	if !ok {
-		t.Fatalf("expected IndividualListenerComponents, got %T", result)
-	}
-
 	// リスナーが1つあることを確認
 	if len(listenerComponents.Listeners) != 1 {
 		t.Errorf("expected 1 listener, got %d", len(listenerComponents.Listeners))
@@ -95,18 +63,18 @@ func TestKubernetesServiceBuilder_Build_SingleListenPort(t *testing.T) {
 	listener := listenerComponents.Listeners[0]
 	address := listener["address"].(map[string]any)
 	socketAddr := address["socket_address"].(map[string]any)
-	port := socketAddr["port_value"].(int)
-	if port != 50051 {
-		t.Errorf("expected listener port 50051, got %d", port)
+	portVal := socketAddr["port_value"].(int)
+	if portVal != 50051 {
+		t.Errorf("expected listener port 50051, got %d", portVal)
 	}
 }
 
-func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPorts(t *testing.T) {
-	// HTTPプロトコルでOverwriteListenPortsあり → HTTP/1.1リスナー
+func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPort(t *testing.T) {
+	// HTTPプロトコルでOverwriteListenPortあり → HTTP/1.1リスナー
 	builder := NewKubernetesServiceBuilder(
 		"http.localhost", "http",
 		"default", "http-service", "http", 8080,
-		[]port.IndividualListenerPort{8080},
+		port.IndividualListenerPort(8080),
 	)
 
 	result := builder.Build("http_cluster", 10001, 80)
@@ -131,12 +99,12 @@ func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPorts(t *testing
 	}
 }
 
-func TestKubernetesServiceBuilder_Build_gRPC_WithOverwriteListenPorts(t *testing.T) {
-	// gRPCプロトコルでOverwriteListenPortsあり → HTTP/2リスナー
+func TestKubernetesServiceBuilder_Build_gRPC_WithOverwriteListenPort(t *testing.T) {
+	// gRPCプロトコルでOverwriteListenPortあり → HTTP/2リスナー
 	builder := NewKubernetesServiceBuilder(
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
-		[]port.IndividualListenerPort{50051},
+		port.IndividualListenerPort(50051),
 	)
 
 	result := builder.Build("grpc_cluster", 10001, 80)
@@ -160,7 +128,7 @@ func TestKubernetesServiceBuilder_GetHost(t *testing.T) {
 	builder := NewKubernetesServiceBuilder(
 		"test.localhost", "http",
 		"default", "test", "http", 8080,
-		nil,
+		0,
 	)
 
 	if builder.GetHost() != "test.localhost" {
