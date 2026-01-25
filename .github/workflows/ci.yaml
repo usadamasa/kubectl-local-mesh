@@ -16,6 +16,7 @@ jobs:
       - build
       - yamllint
       - snapshot
+      - e2e
     if: failure()
     timeout-minutes: 10
     permissions: {}
@@ -83,3 +84,21 @@ jobs:
 
       - name: Run snapshot tests
         run: task test:snapshot
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: aqua-installer
+        uses: ./.github/composites/aqua-installer
+
+      - name: Run E2E tests (docker-compose)
+        run: task e2e:run
+
+      - name: Cleanup
+        if: always()
+        run: task e2e:down

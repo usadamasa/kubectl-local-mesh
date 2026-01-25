@@ -1,0 +1,64 @@
+services:
+  # k3sクラスタ (k3d経由ではなく直接k3sコンテナ)
+  k3s:
+    image: rancher/k3s:v1.31.4-k3s1
+    command: server --tls-san=k3s
+    privileged: true
+    environment:
+      - K3S_TOKEN=e2e-token
+      - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
+      - K3S_KUBECONFIG_MODE=644
+    volumes:
+      - k3s-server:/var/lib/rancher/k3s
+      - ./output:/output
+    ports:
+      - "6443:6443"
+    networks:
+      - e2e-network
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "nodes"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # kubectl-localmesh + Envoy (K8sセットアップも含む)
+  localmesh:
+    build:
+      context: ../..
+      dockerfile: test/e2e/Dockerfile.localmesh
+    depends_on:
+      k3s:
+        condition: service_healthy
+    volumes:
+      - ./output:/output
+      - ./fixtures/k8s:/manifests:ro
+      - ./fixtures/configs:/configs:ro
+    command: ["up", "-f", "/configs/http-only.yaml", "--no-edit-hosts"]
+    networks:
+      - e2e-network
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-H", "Host: http-test.localdomain", "http://localhost:18080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # テストクライアント
+  test-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-client
+    depends_on:
+      localmesh:
+        condition: service_healthy
+    volumes:
+      - ./tests:/tests:ro
+    networks:
+      - e2e-network
+    command: ["/tests/run-all.sh"]
+
+networks:
+  e2e-network:
+    driver: bridge
+
+volumes:
+  k3s-server:
