@@ -8,6 +8,7 @@ extends: default
 ignore:
   - 'testdata/envoy-snapshots/testdata/snapshots/*.yaml'
   - 'testdata/envoy-snapshots/testdata/portforward-mappings/*.yaml'
+  - 'test/e2e/output/*.yaml'
 
 rules:
   line-length: disable

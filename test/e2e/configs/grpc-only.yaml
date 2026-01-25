@@ -1,0 +1,8 @@
+listener_port: 18080
+services:
+  - kind: kubernetes
+    host: grpc-test.localdomain
+    namespace: e2e-test
+    service: grpc-test-server
+    port_name: grpc
+    protocol: grpc

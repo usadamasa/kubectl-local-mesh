@@ -2,6 +2,11 @@
 
 version: '3'
 
+includes:
+  e2e:
+    taskfile: ./test/e2e/Taskfile.yaml
+    dir: ./test/e2e
+
 tasks:
   build:
     desc: Build the project

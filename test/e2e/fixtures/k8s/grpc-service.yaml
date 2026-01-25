@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-test-server
+  namespace: e2e-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grpc-test-server
+  template:
+    metadata:
+      labels:
+        app: grpc-test-server
+    spec:
+      containers:
+        - name: server
+          image: grpc/java-example-hostname:1.68.2
+          ports:
+            - containerPort: 50051
+              name: grpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-test-server
+  namespace: e2e-test
+spec:
+  selector:
+    app: grpc-test-server
+  ports:
+    - port: 50051
+      targetPort: grpc
+      name: grpc

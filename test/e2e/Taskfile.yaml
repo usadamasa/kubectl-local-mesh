@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  run:
+    desc: Run E2E tests (docker-compose)
+    cmds:
+      - docker compose up --build --abort-on-container-exit --exit-code-from test-client
+
+  up:
+    desc: Start E2E environment (for debugging)
+    cmds:
+      - docker compose up --build -d
+
+  down:
+    desc: Stop E2E environment
+    cmds:
+      - docker compose down -v --remove-orphans
+
+  logs:
+    desc: Show E2E environment logs
+    cmds:
+      - docker compose logs -f
