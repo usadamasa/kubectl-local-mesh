@@ -35,7 +35,7 @@ services:
       - ./output:/output
       - ./fixtures/k8s:/manifests:ro
       - ./configs:/configs:ro
-    command: ["up", "-f", "/configs/http-only.yaml", "--no-edit-hosts"]
+    command: ["up", "-f", "/configs/http-and-grpc.yaml", "--no-edit-hosts"]
     networks:
       - e2e-network
     healthcheck:
