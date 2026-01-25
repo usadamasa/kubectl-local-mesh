@@ -1,3 +1,5 @@
+name: localmesh-e2e
+
 services:
   # k3sクラスタ (k3d経由ではなく直接k3sコンテナ)
   k3s:
@@ -25,14 +27,14 @@ services:
   localmesh:
     build:
       context: ../..
-      dockerfile: test/e2e/Dockerfile.localmesh
+      dockerfile: test/e2e/docker/localmesh/Dockerfile
     depends_on:
       k3s:
         condition: service_healthy
     volumes:
       - ./output:/output
       - ./fixtures/k8s:/manifests:ro
-      - ./fixtures/configs:/configs:ro
+      - ./configs:/configs:ro
     command: ["up", "-f", "/configs/http-only.yaml", "--no-edit-hosts"]
     networks:
       - e2e-network
@@ -45,8 +47,8 @@ services:
   # テストクライアント
   test-client:
     build:
-      context: .
-      dockerfile: Dockerfile.test-client
+      context: ./docker/test-client
+      dockerfile: Dockerfile
     depends_on:
       localmesh:
         condition: service_healthy

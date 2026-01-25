@@ -64,15 +64,17 @@ task e2e:down
 
 ```
 test/e2e/
-├── compose.yaml              # docker-compose 設定
-├── Dockerfile.localmesh      # localmesh コンテナ
-├── Dockerfile.test-client    # テストクライアント
+├── compose.yaml              # docker-compose 設定 (name: localmesh-e2e)
 ├── Taskfile.yaml             # E2E用タスク定義
-├── scripts/
-│   └── entrypoint.sh         # localmeshエントリポイント
+├── docker/
+│   ├── localmesh/            # localmesh コンテナ
+│   │   ├── Dockerfile
+│   │   └── entrypoint.sh
+│   └── test-client/          # テストクライアント
+│       └── Dockerfile
+├── configs/                  # localmesh 設定 (テストケースと紐付く)
 ├── fixtures/
-│   ├── k8s/                  # K8s マニフェスト
-│   └── configs/              # localmesh 設定
+│   └── k8s/                  # K8s マニフェスト
 ├── tests/                    # テストスクリプト
 │   └── run-all.sh            # メインテストスクリプト
 └── output/                   # k3s kubeconfig 出力先 (git 無視)

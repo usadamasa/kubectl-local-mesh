@@ -30,7 +30,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY --from=builder /kubectl-localmesh /usr/local/bin/kubectl-localmesh
 
 # entrypointスクリプトをコピー
-COPY test/e2e/scripts/entrypoint.sh /entrypoint.sh
+COPY test/e2e/docker/localmesh/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # 作業ディレクトリ
