@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.3.3](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.2...v0.3.3) - 2026-01-25
+### Other Changes
+- refactor: overwrite_listen_portsをlistener_portに変更 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/70
+- feat: add E2E test environment using docker-compose and k3s by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/72
+- refactor: move snapshot tests from testdata/envoy-snapshots/ to test/snapshot/ by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/73
+- test: add gRPC E2E test using grpcurl by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/74
+
 ## [v0.3.2](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.1...v0.3.2) - 2026-01-18
 ### New Features 🎉
 - feat: loopback IPエイリアスによるTCPサービスの同一ポート対応 by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/66
