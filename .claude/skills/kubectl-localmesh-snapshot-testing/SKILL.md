@@ -16,13 +16,13 @@ kubectl-localmeshは、Envoy設定とport-forwardマッピングを動的に生�
 
 ### 検証対象
 
-1. **Envoy設定ファイル** (`testdata/envoy-snapshots/testdata/snapshots/*.yaml`)
+1. **Envoy設定ファイル** (`test/snapshot/testdata/snapshots/*.yaml`)
    - HTTP/gRPCリスナー設定
    - TCP proxyリスナー設定
    - Upstreamクラスタ設定
    - ルーティング設定
 
-2. **Port-forwardマッピング** (`testdata/envoy-snapshots/testdata/portforward-mappings/*.txt`)
+2. **Port-forwardマッピング** (`test/snapshot/testdata/portforward-mappings/*.txt`)
    - サービス名とローカルポートのマッピング
    - 各サービスの接続先情報
 
@@ -66,20 +66,20 @@ kubectl-localmeshは、Envoy設定とport-forwardマッピングを動的に生�
    ```bash
    # 例: 新しいプロトコルオプションを追加
    # 実装後、スナップショットを更新
-   testdata/envoy-snapshots/scripts/update-snapshots.sh
+   test/snapshot/scripts/update-snapshots.sh
    ```
 
 2. **新機能追加でスナップショットが変わるべき時**
    ```bash
    # 例: TCP proxyサポート追加
    # 新しいスナップショットを生成
-   testdata/envoy-snapshots/scripts/update-snapshots.sh
+   test/snapshot/scripts/update-snapshots.sh
    ```
 
 3. **テストケース追加時**
    ```bash
    # 新しいconfigファイルを追加後
-   testdata/envoy-snapshots/scripts/update-snapshots.sh
+   test/snapshot/scripts/update-snapshots.sh
    ```
 
 ### ⚠️ 注意: 更新してはいけないケース
@@ -103,7 +103,7 @@ kubectl-localmeshは、Envoy設定とport-forwardマッピングを動的に生�
 
 ```bash
 # すべてのスナップショットテストを実行
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 ```
 
 **前提条件:**
@@ -123,21 +123,21 @@ Summary: 2/3 tests passed
 
 ```bash
 # すべてのスナップショットを更新
-testdata/envoy-snapshots/scripts/update-snapshots.sh
+test/snapshot/scripts/update-snapshots.sh
 ```
 
 **実行後の確認:**
 ```bash
 # 差分を必ず確認する
-git diff testdata/envoy-snapshots/testdata/snapshots/
-git diff testdata/envoy-snapshots/testdata/portforward-mappings/
+git diff test/snapshot/testdata/snapshots/
+git diff test/snapshot/testdata/portforward-mappings/
 ```
 
 ### 個別テストケースの確認
 
 ```bash
 # 特定のテストケースのみ確認
-testdata/envoy-snapshots/scripts/diff-snapshot.sh basic
+test/snapshot/scripts/diff-snapshot.sh basic
 ```
 
 ## ワークフロー例
@@ -149,7 +149,7 @@ testdata/envoy-snapshots/scripts/diff-snapshot.sh basic
 task build
 
 # 2. スナップショットテスト実行（現状確認）
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 
 # 3. 機能実装
 # ... コードを編集 ...
@@ -158,13 +158,13 @@ testdata/envoy-snapshots/scripts/run-snapshots.sh
 task build
 
 # 5. スナップショットテスト実行（変更確認）
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 
 # 6. 期待通りの変更ならスナップショット更新
-testdata/envoy-snapshots/scripts/update-snapshots.sh
+test/snapshot/scripts/update-snapshots.sh
 
 # 7. 差分レビュー
-git diff testdata/envoy-snapshots/testdata/
+git diff test/snapshot/testdata/
 
 # 8. 変更が正しいことを確認してコミット
 git add .
@@ -178,7 +178,7 @@ git commit -m "feat: 新機能を追加"
 task build
 
 # 2. スナップショットテスト実行（バグ再現確認）
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 
 # 3. バグ修正
 # ... コードを編集 ...
@@ -187,21 +187,21 @@ testdata/envoy-snapshots/scripts/run-snapshots.sh
 task build
 
 # 5. スナップショットテスト実行（修正確認）
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 
 # 6. テストが通れば完了（スナップショット更新不要）
 # テストが失敗する場合は、期待値が変わったことを確認
-git diff testdata/envoy-snapshots/testdata/
+git diff test/snapshot/testdata/
 
 # 7. 必要に応じてスナップショット更新
-testdata/envoy-snapshots/scripts/update-snapshots.sh
+test/snapshot/scripts/update-snapshots.sh
 ```
 
 ### テストケース追加時
 
 ```bash
 # 1. 新しい設定ファイルを作成
-cat > testdata/envoy-snapshots/testdata/configs/new-feature.yaml <<EOF
+cat > test/snapshot/testdata/configs/new-feature.yaml <<EOF
 listener_port: 80
 services:
   - kind: kubernetes
@@ -213,24 +213,24 @@ services:
 EOF
 
 # 2. モック設定ファイルを作成
-cat > testdata/envoy-snapshots/testdata/mocks/new-feature.yaml <<EOF
+cat > test/snapshot/testdata/mocks/new-feature.yaml <<EOF
 namespace: default
 service: new-service
 port: 8080
 EOF
 
 # 3. スナップショットを生成
-testdata/envoy-snapshots/scripts/update-snapshots.sh
+test/snapshot/scripts/update-snapshots.sh
 
 # 4. 生成されたスナップショットを確認
-cat testdata/envoy-snapshots/testdata/snapshots/new-feature.yaml
-cat testdata/envoy-snapshots/testdata/portforward-mappings/new-feature.txt
+cat test/snapshot/testdata/snapshots/new-feature.yaml
+cat test/snapshot/testdata/portforward-mappings/new-feature.txt
 
 # 5. スナップショットテスト実行
-testdata/envoy-snapshots/scripts/run-snapshots.sh
+test/snapshot/scripts/run-snapshots.sh
 
 # 6. テストが通ることを確認してコミット
-git add testdata/envoy-snapshots/testdata/
+git add test/snapshot/testdata/
 git commit -m "test: new-feature用のスナップショットテストを追加"
 ```
 
@@ -249,15 +249,15 @@ task build
 1. **差分を確認する**
    ```bash
    # 個別テストケースの差分を確認
-   testdata/envoy-snapshots/scripts/diff-snapshot.sh <test-case>
+   test/snapshot/scripts/diff-snapshot.sh <test-case>
    ```
 
 2. **実際の出力を確認する**
    ```bash
    # dump-envoy-configを直接実行
    bin/kubectl-localmesh dump-envoy-config \
-     -f testdata/envoy-snapshots/testdata/configs/<test-case>.yaml \
-     --mock-config testdata/envoy-snapshots/testdata/mocks/<test-case>.yaml
+     -f test/snapshot/testdata/configs/<test-case>.yaml \
+     --mock-config test/snapshot/testdata/mocks/<test-case>.yaml
    ```
 
 3. **変更理由を理解する**
@@ -273,16 +273,16 @@ task build
 
 ```bash
 # 1. すべての変更を確認
-git diff testdata/envoy-snapshots/testdata/
+git diff test/snapshot/testdata/
 
 # 2. Envoy設定の差分を確認
-git diff testdata/envoy-snapshots/testdata/snapshots/
+git diff test/snapshot/testdata/snapshots/
 
 # 3. マッピングの差分を確認
-git diff testdata/envoy-snapshots/testdata/portforward-mappings/
+git diff test/snapshot/testdata/portforward-mappings/
 
 # 4. 具体的なファイルの差分を確認
-git diff testdata/envoy-snapshots/testdata/snapshots/<test-case>.yaml
+git diff test/snapshot/testdata/snapshots/<test-case>.yaml
 ```
 
 **確認ポイント:**
@@ -317,7 +317,7 @@ git diff testdata/envoy-snapshots/testdata/snapshots/<test-case>.yaml
 ### ディレクトリ構造
 
 ```
-testdata/envoy-snapshots/testdata/
+test/snapshot/testdata/
 ├── configs/
 │   └── <test-case>.yaml          # テスト設定ファイル
 ├── mocks/
@@ -337,7 +337,7 @@ kubectl-localmeshプロジェクトではTDDを採用しています。スナッ
 1. **期待される設定変更を先に定義**
    ```bash
    # 新しいスナップショットを手動で作成（期待値）
-   vim testdata/envoy-snapshots/testdata/snapshots/new-feature.yaml
+   vim test/snapshot/testdata/snapshots/new-feature.yaml
    ```
 
 2. **実装コードを書く**
@@ -348,14 +348,14 @@ kubectl-localmeshプロジェクトではTDDを採用しています。スナッ
 3. **テストを実行して確認**
    ```bash
    task build
-   testdata/envoy-snapshots/scripts/run-snapshots.sh
+   test/snapshot/scripts/run-snapshots.sh
    ```
 
 4. **テストが通るまで実装を調整**
    ```bash
    # 実装コードを修正
    task build
-   testdata/envoy-snapshots/scripts/run-snapshots.sh
+   test/snapshot/scripts/run-snapshots.sh
    ```
 
 ## 関連ファイル
@@ -378,16 +378,16 @@ kubectl-localmeshプロジェクトではTDDを採用しています。スナッ
 
 ### テストスクリプト
 
-- `testdata/envoy-snapshots/scripts/run-snapshots.sh`: テスト実行
-- `testdata/envoy-snapshots/scripts/update-snapshots.sh`: スナップショット更新
-- `testdata/envoy-snapshots/scripts/diff-snapshot.sh`: 差分チェック
+- `test/snapshot/scripts/run-snapshots.sh`: テスト実行
+- `test/snapshot/scripts/update-snapshots.sh`: スナップショット更新
+- `test/snapshot/scripts/diff-snapshot.sh`: 差分チェック
 
 ### テストデータ
 
-- `testdata/envoy-snapshots/testdata/configs/`: テスト設定ファイル
-- `testdata/envoy-snapshots/testdata/mocks/`: モック設定ファイル
-- `testdata/envoy-snapshots/testdata/snapshots/`: Envoy設定スナップショット
-- `testdata/envoy-snapshots/testdata/portforward-mappings/`: マッピングスナップショット
+- `test/snapshot/testdata/configs/`: テスト設定ファイル
+- `test/snapshot/testdata/mocks/`: モック設定ファイル
+- `test/snapshot/testdata/snapshots/`: Envoy設定スナップショット
+- `test/snapshot/testdata/portforward-mappings/`: マッピングスナップショット
 
 ## 関連Skills
 

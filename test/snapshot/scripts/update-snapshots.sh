@@ -66,5 +66,5 @@ done
 echo
 echo "✅ Snapshots and mappings updated successfully!"
 echo "⚠️  Please review changes before committing:"
-echo "    git diff testdata/envoy-snapshots/testdata/snapshots/"
-echo "    git diff testdata/envoy-snapshots/testdata/portforward-mappings/"
+echo "    git diff test/snapshot/testdata/snapshots/"
+echo "    git diff test/snapshot/testdata/portforward-mappings/"
