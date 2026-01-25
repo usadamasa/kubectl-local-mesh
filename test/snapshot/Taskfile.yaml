@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  run:
+    desc: Run snapshot tests for Envoy configuration
+    cmds:
+      - ./scripts/run-snapshots.sh
+
+  update:
+    desc: Update Envoy config snapshot files (use carefully!)
+    cmds:
+      - task: :build
+      - ./scripts/update-snapshots.sh

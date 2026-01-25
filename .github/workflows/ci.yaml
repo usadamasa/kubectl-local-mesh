@@ -83,7 +83,7 @@ jobs:
         run: task build
 
       - name: Run snapshot tests
-        run: task test:snapshot
+        run: task snapshot:run
 
   e2e:
     runs-on: ubuntu-latest
