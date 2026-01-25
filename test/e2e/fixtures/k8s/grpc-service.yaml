@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: grpc/java-example-hostname:latest
+          image: grpc/java-example-hostname:1.68.2
           ports:
             - containerPort: 50051
               name: grpc

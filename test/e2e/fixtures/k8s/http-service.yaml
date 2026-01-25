@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: hashicorp/http-echo:latest
+          image: hashicorp/http-echo:0.2.3
           args:
             - "-text=Hello from E2E test"
             - "-listen=:8080"

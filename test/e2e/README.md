@@ -12,24 +12,21 @@ docker-compose と k3s コンテナを使用して、完全コンテナ化され
 ## クイックスタート
 
 ```bash
-# 1. バイナリビルド
-task build
-
-# 2. E2Eテスト実行
-task test:e2e
+# E2Eテスト実行
+task e2e:run
 ```
 
 ## デバッグ用コマンド
 
 ```bash
 # 環境を起動したまま維持
-task test:e2e:up
+task e2e:up
 
 # ログを確認
-task test:e2e:logs
+task e2e:logs
 
 # 環境を停止
-task test:e2e:down
+task e2e:down
 ```
 
 ## アーキテクチャ
@@ -45,7 +42,7 @@ task test:e2e:down
 │  └─────────────┘    └─────────────────┘    └─────────────┘ │
 │        ↓                    ↓                    ↓         │
 │   HTTPリクエスト      port-forward         K8s Services    │
-│   Host: xxx.local     via WebSocket        (HTTP/gRPC)     │
+│   Host: xxx.localdomain via WebSocket     (HTTP/gRPC)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,8 +51,7 @@ task test:e2e:down
 | サービス | 説明 |
 |---------|------|
 | k3s | 軽量 Kubernetes クラスタ (rancher/k3s) |
-| k8s-setup | テスト用サービスをデプロイ |
-| localmesh | kubectl-localmesh + Envoy |
+| localmesh | kubectl-localmesh + Envoy (K8sセットアップも含む) |
 | test-client | テストスクリプト実行 (curl + grpcurl) |
 
 ## テストケース
@@ -71,10 +67,14 @@ test/e2e/
 ├── compose.yaml              # docker-compose 設定
 ├── Dockerfile.localmesh      # localmesh コンテナ
 ├── Dockerfile.test-client    # テストクライアント
+├── Taskfile.yaml             # E2E用タスク定義
+├── scripts/
+│   └── entrypoint.sh         # localmeshエントリポイント
 ├── fixtures/
 │   ├── k8s/                  # K8s マニフェスト
 │   └── configs/              # localmesh 設定
 ├── tests/                    # テストスクリプト
+│   └── run-all.sh            # メインテストスクリプト
 └── output/                   # k3s kubeconfig 出力先 (git 無視)
 ```
 
