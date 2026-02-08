@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/usadamasa/kubectl-localmesh/schemas/config.schema.json",
+  "title": "kubectl-localmesh configuration",
+  "description": "Configuration file for kubectl-localmesh local service mesh",
+  "type": "object",
+  "properties": {
+    "listener_port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 80,
+      "description": "Envoy main listener port for HTTP/gRPC services"
+    },
+    "ssh_bastions": {
+      "type": "object",
+      "description": "GCP SSH bastion definitions for TCP proxy connections",
+      "additionalProperties": {
+        "$ref": "#/$defs/SSHBastion"
+      }
+    },
+    "services": {
+      "type": "array",
+      "description": "List of services to route",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Service"
+      }
+    }
+  },
+  "required": ["services"],
+  "additionalProperties": false,
+  "$defs": {
+    "SSHBastion": {
+      "type": "object",
+      "description": "GCP SSH bastion configuration",
+      "properties": {
+        "instance": {
+          "type": "string",
+          "description": "GCP Compute Instance name"
+        },
+        "zone": {
+          "type": "string",
+          "description": "GCP zone"
+        },
+        "project": {
+          "type": "string",
+          "description": "GCP project ID (optional, uses gcloud config default)"
+        }
+      },
+      "required": ["instance", "zone"],
+      "additionalProperties": false
+    },
+    "Service": {
+      "oneOf": [
+        { "$ref": "#/$defs/KubernetesService" },
+        { "$ref": "#/$defs/TCPService" }
+      ]
+    },
+    "KubernetesService": {
+      "type": "object",
+      "description": "Kubernetes service routed via kubectl port-forward",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["kubernetes"]
+        },
+        "host": {
+          "type": "string",
+          "description": "Local hostname for accessing this service (e.g., users-api.localhost)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace"
+        },
+        "service": {
+          "type": "string",
+          "description": "Kubernetes Service name"
+        },
+        "port_name": {
+          "type": "string",
+          "description": "Service port name (for multi-port Services)"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Explicit port number"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["http", "http2", "grpc"],
+          "description": "Protocol type"
+        },
+        "listener_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Individual listener port (overrides main listener_port)"
+        }
+      },
+      "required": ["kind", "host", "namespace", "service", "protocol"],
+      "additionalProperties": false
+    },
+    "TCPService": {
+      "type": "object",
+      "description": "TCP service routed via GCP SSH bastion tunnel",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["tcp"]
+        },
+        "host": {
+          "type": "string",
+          "description": "Local hostname for accessing this service"
+        },
+        "ssh_bastion": {
+          "type": "string",
+          "description": "Reference to ssh_bastions map key"
+        },
+        "target_host": {
+          "type": "string",
+          "description": "Private IP of the target (e.g., Cloud SQL)"
+        },
+        "target_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Target port number"
+        },
+        "listen_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Local listen port (defaults to target_port)"
+        }
+      },
+      "required": ["kind", "host", "ssh_bastion", "target_host", "target_port"],
+      "additionalProperties": false
+    }
+  }
+}

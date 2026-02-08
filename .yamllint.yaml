@@ -6,8 +6,8 @@ yaml-files:
 extends: default
 
 ignore:
-  - 'testdata/envoy-snapshots/testdata/snapshots/*.yaml'
-  - 'testdata/envoy-snapshots/testdata/portforward-mappings/*.yaml'
+  - 'test/snapshot/testdata/snapshots/*.yaml'
+  - 'test/snapshot/testdata/portforward-mappings/*.yaml'
   - 'test/e2e/output/*.yaml'
 
 rules:
