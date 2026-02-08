@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	ListenerPort port.ListenerPort      `yaml:"listener_port"`
+	Cluster      string                 `yaml:"cluster,omitempty"`
 	SSHBastions  map[string]*SSHBastion `yaml:"ssh_bastions,omitempty"`
 	Services     []ServiceDefinition    `yaml:"services"`
 }
@@ -44,6 +45,7 @@ type KubernetesService struct {
 	Port         port.ServicePort  `yaml:"port,omitempty"`
 	Protocol     string            `yaml:"protocol"`                // http|http2|grpc
 	ListenerPort port.ListenerPort `yaml:"listener_port,omitempty"` // 個別リスナーポート（指定時はHTTPリスナーを上書き）
+	Cluster      string            `yaml:"cluster,omitempty"`       // kubeconfig cluster name（オーバーライド用）
 }
 
 // TCPService はGCP SSH Bastion経由のTCP接続を表現
@@ -224,6 +226,9 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// グローバルClusterのトリム
+	cfg.Cluster = strings.TrimSpace(cfg.Cluster)
+
 	// デフォルト値設定
 	if cfg.ListenerPort == 0 {
 		cfg.ListenerPort = 80
@@ -288,6 +293,7 @@ func trimServiceFields(svc Service) {
 		s.Service = strings.TrimSpace(s.Service)
 		s.PortName = strings.TrimSpace(s.PortName)
 		s.Protocol = strings.TrimSpace(s.Protocol)
+		s.Cluster = strings.TrimSpace(s.Cluster)
 	case *TCPService:
 		s.Host = strings.TrimSpace(s.Host)
 		s.SSHBastion = strings.TrimSpace(s.SSHBastion)

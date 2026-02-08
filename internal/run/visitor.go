@@ -17,13 +17,21 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
-// RunVisitor は Run() 処理のための Visitor 実装
-type RunVisitor struct {
-	ctx        context.Context
-	cfg        *config.Config
+// k8sClientEntry はcluster単位のKubernetes clientをキャッシュするエントリ
+type k8sClientEntry struct {
 	clientset  *kubernetes.Clientset
 	restConfig *rest.Config
-	logger     *log.Logger
+}
+
+// RunVisitor は Run() 処理のための Visitor 実装
+type RunVisitor struct {
+	ctx            context.Context
+	cfg            *config.Config
+	defaultCluster string
+	logger         *log.Logger
+
+	// cluster名 → clientset/restConfig のキャッシュ
+	clients map[string]*k8sClientEntry
 
 	// loopback IPアロケータ（TCPサービス用）
 	ipAllocator *loopback.IPAllocator
@@ -40,16 +48,14 @@ type RunVisitor struct {
 func NewRunVisitor(
 	ctx context.Context,
 	cfg *config.Config,
-	clientset *kubernetes.Clientset,
-	restConfig *rest.Config,
 	logger *log.Logger,
 ) *RunVisitor {
 	return &RunVisitor{
 		ctx:              ctx,
 		cfg:              cfg,
-		clientset:        clientset,
-		restConfig:       restConfig,
+		defaultCluster:   cfg.Cluster,
 		logger:           logger,
+		clients:          make(map[string]*k8sClientEntry),
 		ipAllocator:      loopback.NewIPAllocator(),
 		portChecker:      port.NewPortConflictChecker(),
 		serviceConfigs:   make([]envoy.ServiceConfig, 0),
@@ -57,12 +63,38 @@ func NewRunVisitor(
 	}
 }
 
+// getOrCreateClient はcluster名に対応するKubernetes clientを取得または生成する
+// 解決順序: サービスのcluster → グローバルcluster → ""(current-context)
+func (v *RunVisitor) getOrCreateClient(serviceCluster string) (*kubernetes.Clientset, *rest.Config, error) {
+	resolved := serviceCluster
+	if resolved == "" {
+		resolved = v.defaultCluster
+	}
+
+	if entry, ok := v.clients[resolved]; ok {
+		return entry.clientset, entry.restConfig, nil
+	}
+
+	clientset, restConfig, err := k8s.NewClient(resolved)
+	if err != nil {
+		return nil, nil, err
+	}
+	v.clients[resolved] = &k8sClientEntry{clientset: clientset, restConfig: restConfig}
+	return clientset, restConfig, nil
+}
+
 // VisitKubernetes は Kubernetes Service の処理
 func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
+	// サービスに対応するKubernetes clientを取得
+	clientset, restConfig, err := v.getOrCreateClient(s.Cluster)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client for service '%s': %w", s.Host, err)
+	}
+
 	// ポート解決
 	remotePort, err := k8s.ResolveServicePort(
 		v.ctx,
-		v.clientset,
+		clientset,
 		s.Namespace,
 		s.Service,
 		s.PortName,
@@ -81,7 +113,7 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 
 	// ビルダー構築
 	builder := envoy.NewKubernetesServiceBuilder(
-		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort,
+		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort, s.Cluster,
 	)
 
 	v.logger.Debugf(
@@ -107,11 +139,11 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	})
 
 	// port-forwardをgoroutineで起動
-	go func(ns, svc string, local port.LocalPort, remote port.ServicePort, logger *log.Logger) {
+	go func(ns, svc string, local port.LocalPort, remote port.ServicePort, rc *rest.Config, cs *kubernetes.Clientset, logger *log.Logger) {
 		if err := k8s.StartPortForwardLoop(
 			v.ctx,
-			v.restConfig,
-			v.clientset,
+			rc,
+			cs,
 			ns,
 			svc,
 			local,
@@ -122,7 +154,7 @@ func (v *RunVisitor) VisitKubernetes(s *config.KubernetesService) error {
 				fmt.Fprintf(os.Stderr, "port-forward error for %s/%s: %v\n", ns, svc, err)
 			}
 		}
-	}(s.Namespace, s.Service, localPort, remotePort, v.logger)
+	}(s.Namespace, s.Service, localPort, remotePort, restConfig, clientset, v.logger)
 
 	// ServiceConfig を保存
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{

@@ -10,16 +10,15 @@ import (
 // It follows the same discovery order as kubectl:
 // 1. $KUBECONFIG environment variable
 // 2. ~/.kube/config
-// Uses the current-context from the kubeconfig.
-func NewClient() (*kubernetes.Clientset, *rest.Config, error) {
-	// kubeconfigのロードルール
-	// clientcmd.NewDefaultClientConfigLoadingRules() は以下の順序で検索:
-	// 1. $KUBECONFIG環境変数で指定されたパス
-	// 2. ~/.kube/config（デフォルト）
+// If cluster is non-empty, it overrides the cluster in the current-context
+// (equivalent to kubectl --cluster flag).
+func NewClient(cluster string) (*kubernetes.Clientset, *rest.Config, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 
-	// current-contextを使用してRESTConfigを作成
 	configOverrides := &clientcmd.ConfigOverrides{}
+	if cluster != "" {
+		configOverrides.Context.Cluster = cluster
+	}
 
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		loadingRules,

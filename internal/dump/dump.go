@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"gopkg.in/yaml.v3"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
-	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
 	"github.com/usadamasa/kubectl-localmesh/internal/snapshot"
 )
 
@@ -35,18 +33,8 @@ func DumpEnvoyConfigWithOptions(ctx context.Context, cfg *config.Config, opts Du
 		}
 	}
 
-	// モックモードでない場合はKubernetes clientを初期化
-	var clientset *kubernetes.Clientset
-	if mockCfg == nil {
-		var k8sErr error
-		clientset, _, k8sErr = k8s.NewClient()
-		if k8sErr != nil {
-			return fmt.Errorf("failed to create kubernetes client: %w", k8sErr)
-		}
-	}
-
-	// Visitor の生成
-	visitor := NewDumpVisitor(ctx, clientset, mockCfg)
+	// Visitor の生成（Kubernetes clientはサービスごとにlazy初期化）
+	visitor := NewDumpVisitor(ctx, cfg.Cluster, mockCfg)
 
 	// Visitorパターンで各サービスを処理
 	for i, svcDef := range cfg.Services {

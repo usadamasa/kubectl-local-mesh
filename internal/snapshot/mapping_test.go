@@ -97,6 +97,8 @@ func TestPortForwardMapping_YAML(t *testing.T) {
 		assertNotContains(t, got, "target_port")
 		assertNotContains(t, got, "assigned_listen_addr")
 		assertNotContains(t, got, "assigned_listener_port")
+		// cluster未指定時は出力されないべき（envoy_cluster_nameとは別）
+		assertNotContains(t, got, "\ncluster:")
 	})
 }
 
@@ -142,7 +144,7 @@ func TestPortForwardMappingSet_YAML(t *testing.T) {
 func TestBuildMappings(t *testing.T) {
 	t.Run("kubernetes services", func(t *testing.T) {
 		builder := envoy.NewKubernetesServiceBuilder(
-			"api.localhost", "http", "default", "api", "http", 0, 0,
+			"api.localhost", "http", "default", "api", "http", 0, 0, "",
 		)
 		configs := []envoy.ServiceConfig{
 			{
@@ -174,6 +176,7 @@ func TestBuildMappings(t *testing.T) {
 		builder := envoy.NewKubernetesServiceBuilder(
 			"grpc.localhost", "grpc", "default", "grpc-service", "grpc", 0,
 			port.IndividualListenerPort(8081),
+			"",
 		)
 		configs := []envoy.ServiceConfig{
 			{
@@ -228,9 +231,34 @@ func TestBuildMappings(t *testing.T) {
 		assertEqual(t, "tcp_primary_10_0_0_1_5432", m.EnvoyClusterName)
 	})
 
+	t.Run("kubernetes services with cluster", func(t *testing.T) {
+		builder := envoy.NewKubernetesServiceBuilder(
+			"api.localhost", "http", "default", "api", "http", 0, 0,
+			"gke_myproject_asia-northeast1_staging",
+		)
+		configs := []envoy.ServiceConfig{
+			{
+				Builder:            builder,
+				ClusterName:        "default_api_8080",
+				LocalPort:          10000,
+				ResolvedRemotePort: 8080,
+			},
+		}
+
+		mappings := snapshot.BuildMappings(configs)
+
+		if len(mappings.Services) != 1 {
+			t.Fatalf("expected 1 service, got %d", len(mappings.Services))
+		}
+
+		m := mappings.Services[0]
+		assertEqual(t, "kubernetes", m.Kind)
+		assertEqual(t, "gke_myproject_asia-northeast1_staging", m.Cluster)
+	})
+
 	t.Run("mixed services", func(t *testing.T) {
 		k8sBuilder := envoy.NewKubernetesServiceBuilder(
-			"api.localhost", "http", "default", "api", "http", 0, 0,
+			"api.localhost", "http", "default", "api", "http", 0, 0, "",
 		)
 		tcpBuilder := envoy.NewTCPServiceBuilder(
 			"db.localhost", 5432, "127.0.0.2", "primary", "10.0.0.1", 5432,

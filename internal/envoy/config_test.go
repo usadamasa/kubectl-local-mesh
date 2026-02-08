@@ -10,6 +10,7 @@ func TestBuildConfig_HTTPOnly(t *testing.T) {
 		"api.localhost", "http",
 		"default", "api", "http", 8080,
 		0, // OverwriteListenPort
+		"",
 	)
 	configs := []ServiceConfig{
 		{
@@ -107,6 +108,7 @@ func TestBuildConfig_MixedHTTPAndTCP(t *testing.T) {
 				"api.localhost", "http",
 				"default", "api", "http", 8080,
 				0,
+				"",
 			),
 			ClusterName: "api_cluster",
 			LocalPort:   10001,
@@ -219,6 +221,7 @@ func TestBuildConfig_HTTPProtocol(t *testing.T) {
 		"api.localhost", "http",
 		"default", "api", "http", 8080,
 		0,
+		"",
 	)
 	configs := []ServiceConfig{
 		{
@@ -277,6 +280,7 @@ func TestBuildConfig_HTTP2Protocol(t *testing.T) {
 		"api.localhost", "http2",
 		"default", "api", "http", 8080,
 		0,
+		"",
 	)
 	configs := []ServiceConfig{
 		{
@@ -335,6 +339,7 @@ func TestBuildConfig_gRPCProtocol(t *testing.T) {
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 9090,
 		0,
+		"",
 	)
 	configs := []ServiceConfig{
 		{
@@ -395,6 +400,7 @@ func TestBuildConfig_MixedProtocols(t *testing.T) {
 				"api.localhost", "http",
 				"default", "api", "http", 8080,
 				0,
+				"",
 			),
 			ClusterName: "api_cluster",
 			LocalPort:   10001,
@@ -404,6 +410,7 @@ func TestBuildConfig_MixedProtocols(t *testing.T) {
 				"api2.localhost", "http2",
 				"default", "api2", "http", 8080,
 				0,
+				"",
 			),
 			ClusterName: "api2_cluster",
 			LocalPort:   10002,
@@ -413,6 +420,7 @@ func TestBuildConfig_MixedProtocols(t *testing.T) {
 				"grpc.localhost", "grpc",
 				"default", "grpc-service", "grpc", 9090,
 				0,
+				"",
 			),
 			ClusterName: "grpc_cluster",
 			LocalPort:   10003,

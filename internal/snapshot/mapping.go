@@ -12,6 +12,7 @@ type PortForwardMapping struct {
 	Namespace          string `yaml:"namespace,omitempty"`
 	Service            string `yaml:"service,omitempty"`
 	PortName           string `yaml:"port_name,omitempty"`
+	Cluster            string `yaml:"cluster,omitempty"`
 	ResolvedRemotePort int    `yaml:"resolved_remote_port,omitempty"`
 
 	// TCP service fields
@@ -47,6 +48,7 @@ func BuildMappings(configs []envoy.ServiceConfig) PortForwardMappingSet {
 				Namespace:          builder.Namespace,
 				Service:            builder.ServiceName,
 				PortName:           builder.PortName,
+				Cluster:            builder.Cluster,
 				ResolvedRemotePort: int(cfg.ResolvedRemotePort),
 				AssignedLocalPort:  int(cfg.LocalPort),
 				EnvoyClusterName:   cfg.ClusterName,
