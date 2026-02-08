@@ -26,6 +26,11 @@ func init() {
 	)
 }
 
+func SetVersion(v, c, d string) {
+	rootCmd.Version = v
+	rootCmd.SetVersionTemplate("{{.Name}} version " + v + " (" + d + ", " + c + ")\n")
+}
+
 func Execute() error {
 	return rootCmd.Execute()
 }
