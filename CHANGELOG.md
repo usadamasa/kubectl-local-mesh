@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.3.4](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.3...v0.3.4) - 2026-02-08
+### New Features 🎉
+- feat: add multi-cluster support with per-service cluster override by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/76
+- feat: add version command support and install task by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/78
+### Bug Fixes 🐛
+- feat: add ReadBuildInfo fallback for go install version output by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/80
+
 ## [v0.3.3](https://github.com/usadamasa/kubectl-localmesh/compare/v0.3.2...v0.3.3) - 2026-02-08
 ### New Features 🎉
 - feat: add JSON Schema for config validation and validate subcommand by @usadamasa in https://github.com/usadamasa/kubectl-localmesh/pull/75
