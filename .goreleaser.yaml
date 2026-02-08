@@ -20,6 +20,13 @@ builds:
     goos:
       - linux
       - darwin
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
 
 archives:
   - formats: [tar.gz]

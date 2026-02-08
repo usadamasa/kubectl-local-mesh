@@ -27,6 +27,22 @@ tasks:
       - yamllint -c .yamllint.yaml .
       - golangci-lint run
 
+  install:
+    desc: Install the binary to $GOBIN
+    vars:
+      GIT_VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo "none"
+      BUILD_DATE:
+        sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
+    cmds:
+      - go clean -i .
+      - |
+        go install -trimpath -v \
+          -ldflags="-X main.version={{.GIT_VERSION}} -X main.commit={{.GIT_COMMIT}} -X main.date={{.BUILD_DATE}}" \
+          .
+
   format:
     desc: Format code
     cmds:
