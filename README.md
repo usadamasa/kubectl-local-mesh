@@ -205,9 +205,22 @@ To disable automatic `/etc/hosts` update:
 kubectl localmesh up -f services.yaml --no-edit-hosts
 ```
 
+### Validate configuration
+
+You can validate configuration files before running:
+
+```bash
+# Go-level validation (same checks as 'up')
+kubectl localmesh validate -f services.yaml
+
+# Additionally validate against JSON Schema (detects typos, unknown fields)
+kubectl localmesh validate -f services.yaml --strict
+```
+
 ### Subcommands
 
 - `up`: Start the local service mesh
+- `validate`: Validate configuration file
 - `dump-envoy-config`: Dump Envoy configuration to stdout
 - `down`: Stop the running mesh (planned)
 - `status`: Show mesh status (planned)
@@ -324,6 +337,32 @@ curl -H "Host: users-api.localhost" http://127.0.0.1:80/
 **Cleanup:**
 
 When you stop kubectl-localmesh (Ctrl+C), it automatically removes the managed entries from /etc/hosts.
+
+### JSON Schema for Editor Integration
+
+A JSON Schema file (`schemas/config.schema.json`) is provided for editor support (autocompletion and inline validation).
+
+**For files inside the repository:**
+
+```yaml
+# yaml-language-server: $schema=schemas/config.schema.json
+```
+
+**For files outside the repository** (e.g., your own `services.yaml`):
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/usadamasa/kubectl-local-mesh/main/schemas/config.schema.json
+```
+
+To pin to a specific version:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/usadamasa/kubectl-local-mesh/v0.3.0/schemas/config.schema.json
+```
+
+This works with VS Code (YAML extension), IntelliJ IDEA, and other editors that support `yaml-language-server`.
+
+The `--strict` flag in the `validate` subcommand uses this same schema to detect typos and unknown fields that Go-level validation does not catch.
 
 ### Advanced Usage
 
@@ -466,6 +505,7 @@ Roadmap ideas
 - krew distribution
 - ✅ Subcommands (`up` and `dump-envoy-config` implemented, `down` and `status` planned)
 - ✅ **GCP SSH Bastion support for database connections (TCP proxy)**
+- ✅ **JSON Schema for configuration validation and editor integration**
 - TLS support via local certificates
 - gRPC-web support
 - Envoy-less HTTP-only mode

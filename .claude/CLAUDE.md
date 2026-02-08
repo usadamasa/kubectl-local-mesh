@@ -48,6 +48,7 @@ DB (Cloud SQL等、Private IP)
    - Cobraベースのサブコマンド実装
    - `root.go`: ルートコマンド定義（グローバルフラグ: `--log-level`）
    - `up.go`: サービスメッシュ起動（upサブコマンド）
+   - `validate.go`: 設定ファイルの検証（validateサブコマンド）
    - `dump_envoy_config.go`: Envoy設定のダンプ（dump-envoy-configサブコマンド）
    - (将来) `down.go`: サービスメッシュ停止
    - (将来) `status.go`: ステータス表示
@@ -100,7 +101,22 @@ DB (Cloud SQL等、Private IP)
    - ユーザーフレンドリーなサマリー出力
    - `Logger`型によるログ出力の抽象化
 
-10. **loopback** (`internal/loopback/`)
+10. **schemas** (`schemas/`)
+    - 設定ファイルのJSON Schema定義（Draft 2020-12）
+    - `config.schema.json`: 設定ファイルの構造定義
+    - `embed.go`: `//go:embed`によるスキーマファイルのバイナリ埋め込み
+    - `oneOf` + `enum`パターンでタグ付きユニオン（kind: kubernetes / tcp）を表現
+    - `additionalProperties: false`で未知フィールド（タイポ）を検出
+    - エディタ統合（yaml-language-server）にも使用
+
+11. **validate** (`internal/validate/`)
+    - JSON Schemaに基づく設定ファイル検証ロジック
+    - `santhosh-tekuri/jsonschema/v6`ライブラリを使用
+    - YAMLをmap[string]anyにアンマーシャルし、JSON互換型に変換後スキーマ検証
+    - `ValidationResult`型で検証結果を構造化して返却
+    - `validateCmd --strict`フラグから呼び出される
+
+12. **loopback** (`internal/loopback/`)
     - **macOS限定機能**
     - loopback IPエイリアス管理（TCPサービス用）
     - `IPAllocator`: 127.0.0.2〜127.0.0.254から順次IPを割り当て
@@ -242,6 +258,22 @@ services:
     target_port: 5432                # DBポート
 ```
 
+### JSON Schema
+
+設定ファイルのJSON Schemaが`schemas/config.schema.json`に定義されている。
+
+**用途:**
+- エディタ統合: `yaml-language-server`による自動補完・検証
+- CLI検証: `validate --strict`コマンドによる厳密検証
+- 未知フィールド検出: `additionalProperties: false`でタイポを検出
+
+**設定ファイルにスキーマを関連付ける:**
+```yaml
+# yaml-language-server: $schema=schemas/config.schema.json
+listener_port: 80
+services: ...
+```
+
 ### 構造体階層
 
 **v0.2.0でタグ付きユニオン型を導入:**
@@ -289,6 +321,7 @@ TCPService (GCP SSH tunnel)
 - **Go modules:**
   - `gopkg.in/yaml.v3`: 設定ファイルパース
   - `k8s.io/client-go v0.35.0+`: Kubernetes client with WebSocket support
+  - `github.com/santhosh-tekuri/jsonschema/v6`: JSON Schema Draft 2020-12検証（validateコマンド用）
 
 - **開発ツール (aqua管理):**
   - `task`: タスクランナー（Taskfile.yaml実行）
