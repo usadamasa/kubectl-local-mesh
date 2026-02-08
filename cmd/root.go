@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/usadamasa/kubectl-localmesh/internal/version"
 )
 
 var globalLogLevel string
@@ -26,9 +27,9 @@ func init() {
 	)
 }
 
-func SetVersion(v, c, d string) {
-	rootCmd.Version = v
-	rootCmd.SetVersionTemplate("{{.Name}} version " + v + " (" + d + ", " + c + ")\n")
+func SetVersion(info version.Info) {
+	rootCmd.Version = info.Version
+	rootCmd.SetVersionTemplate("{{.Name}} version " + info.DisplayString() + "\n")
 }
 
 func Execute() error {
