@@ -141,6 +141,81 @@ services:
 	}
 }
 
+func TestValidateSchema_GlobalCluster(t *testing.T) {
+	content := `
+cluster: gke_myproject_asia-northeast1_staging
+services:
+  - kind: kubernetes
+    host: test.localhost
+    namespace: test
+    service: test-svc
+    protocol: http
+`
+	result := validateYAMLContent(t, content)
+	if !result.OK() {
+		t.Errorf("expected valid config with global cluster, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidateSchema_ServiceCluster(t *testing.T) {
+	content := `
+services:
+  - kind: kubernetes
+    host: test.localhost
+    namespace: test
+    service: test-svc
+    protocol: http
+    cluster: gke_myproject_asia-northeast1_prod
+`
+	result := validateYAMLContent(t, content)
+	if !result.OK() {
+		t.Errorf("expected valid config with service cluster, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidateSchema_GlobalAndServiceCluster(t *testing.T) {
+	content := `
+cluster: gke_myproject_asia-northeast1_staging
+services:
+  - kind: kubernetes
+    host: api.localhost
+    namespace: default
+    service: api-svc
+    protocol: http
+  - kind: kubernetes
+    host: admin.localhost
+    namespace: admin
+    service: admin-web
+    protocol: http
+    cluster: gke_myproject_asia-northeast1_prod
+`
+	result := validateYAMLContent(t, content)
+	if !result.OK() {
+		t.Errorf("expected valid config with both global and service cluster, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidateSchema_TCPServiceWithCluster_Invalid(t *testing.T) {
+	// TCPサービスにclusterフィールドは使えない
+	content := `
+ssh_bastions:
+  primary:
+    instance: bastion-1
+    zone: zone-a
+services:
+  - kind: tcp
+    host: db.localhost
+    ssh_bastion: primary
+    target_host: 10.0.0.1
+    target_port: 5432
+    cluster: some-cluster
+`
+	result := validateYAMLContent(t, content)
+	if result.OK() {
+		t.Error("expected validation error for cluster on TCP service")
+	}
+}
+
 func TestValidateSchema_MissingServices(t *testing.T) {
 	content := `
 listener_port: 80

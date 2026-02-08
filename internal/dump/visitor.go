@@ -13,12 +13,20 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/port"
 )
 
+// k8sClientEntry はcluster単位のKubernetes clientをキャッシュするエントリ
+type k8sClientEntry struct {
+	clientset *kubernetes.Clientset
+}
+
 // DumpVisitor は DumpEnvoyConfig() 処理のための Visitor 実装
 type DumpVisitor struct {
-	ctx       context.Context
-	clientset *kubernetes.Clientset
-	mockCfg   *config.MockConfig
-	idx       int
+	ctx            context.Context
+	defaultCluster string
+	mockCfg        *config.MockConfig
+	idx            int
+
+	// cluster名 → clientset のキャッシュ
+	clients map[string]*k8sClientEntry
 
 	// loopback IPアロケータ（TCPサービス用）
 	ipAllocator *loopback.IPAllocator
@@ -30,16 +38,36 @@ type DumpVisitor struct {
 // NewDumpVisitor は DumpVisitor を生成
 func NewDumpVisitor(
 	ctx context.Context,
-	clientset *kubernetes.Clientset,
+	defaultCluster string,
 	mockCfg *config.MockConfig,
 ) *DumpVisitor {
 	return &DumpVisitor{
 		ctx:            ctx,
-		clientset:      clientset,
+		defaultCluster: defaultCluster,
 		mockCfg:        mockCfg,
+		clients:        make(map[string]*k8sClientEntry),
 		ipAllocator:    loopback.NewIPAllocator(),
 		serviceConfigs: make([]envoy.ServiceConfig, 0),
 	}
+}
+
+// getOrCreateClient はcluster名に対応するKubernetes clientを取得または生成する
+func (v *DumpVisitor) getOrCreateClient(serviceCluster string) (*kubernetes.Clientset, error) {
+	resolved := serviceCluster
+	if resolved == "" {
+		resolved = v.defaultCluster
+	}
+
+	if entry, ok := v.clients[resolved]; ok {
+		return entry.clientset, nil
+	}
+
+	clientset, _, err := k8s.NewClient(resolved)
+	if err != nil {
+		return nil, err
+	}
+	v.clients[resolved] = &k8sClientEntry{clientset: clientset}
+	return clientset, nil
 }
 
 // VisitKubernetes は Kubernetes Service の処理（ダンプ用）
@@ -54,10 +82,15 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 			return err
 		}
 	} else {
-		// モック設定がない場合は通常通りclient-goで解決
+		// サービスに対応するKubernetes clientを取得
+		clientset, clientErr := v.getOrCreateClient(s.Cluster)
+		if clientErr != nil {
+			return fmt.Errorf("failed to create kubernetes client for service '%s': %w", s.Host, clientErr)
+		}
+
 		remotePort, err = k8s.ResolveServicePort(
 			v.ctx,
-			v.clientset,
+			clientset,
 			s.Namespace,
 			s.Service,
 			s.PortName,
@@ -73,7 +106,7 @@ func (v *DumpVisitor) VisitKubernetes(s *config.KubernetesService) error {
 	clusterName := sanitize(fmt.Sprintf("%s_%s_%d", s.Namespace, s.Service, remotePort))
 
 	builder := envoy.NewKubernetesServiceBuilder(
-		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort,
+		s.Host, s.Protocol, s.Namespace, s.Service, s.PortName, s.Port, s.ListenerPort, s.Cluster,
 	)
 
 	v.serviceConfigs = append(v.serviceConfigs, envoy.ServiceConfig{

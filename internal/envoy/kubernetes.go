@@ -16,10 +16,11 @@ type KubernetesServiceBuilder struct {
 	ServiceName string
 	PortName    string
 	Port        port.ServicePort
+	Cluster     string
 }
 
 // NewKubernetesServiceBuilder はKubernetesServiceBuilderを生成
-func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, p port.ServicePort, listenerPort port.IndividualListenerPort) *KubernetesServiceBuilder {
+func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portName string, p port.ServicePort, listenerPort port.IndividualListenerPort, cluster string) *KubernetesServiceBuilder {
 	if protocol == "" {
 		protocol = "http" // デフォルトHTTP/1.1
 	}
@@ -31,6 +32,7 @@ func NewKubernetesServiceBuilder(host, protocol, namespace, serviceName, portNam
 		ServiceName:         serviceName,
 		PortName:            portName,
 		Port:                p,
+		Cluster:             cluster,
 	}
 }
 

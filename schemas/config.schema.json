@@ -12,6 +12,10 @@
       "default": 80,
       "description": "Envoy main listener port for HTTP/gRPC services"
     },
+    "cluster": {
+      "type": "string",
+      "description": "Default kubeconfig cluster name for all Kubernetes services (can be overridden per service)"
+    },
     "ssh_bastions": {
       "type": "object",
       "description": "GCP SSH bastion definitions for TCP proxy connections",
@@ -97,6 +101,10 @@
           "minimum": 1,
           "maximum": 65535,
           "description": "Individual listener port (overrides main listener_port)"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "Kubeconfig cluster name (overrides global cluster setting)"
         }
       },
       "required": ["kind", "host", "namespace", "service", "protocol"],

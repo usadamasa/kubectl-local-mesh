@@ -10,7 +10,6 @@ import (
 	"github.com/usadamasa/kubectl-localmesh/internal/config"
 	"github.com/usadamasa/kubectl-localmesh/internal/envoy"
 	"github.com/usadamasa/kubectl-localmesh/internal/hosts"
-	"github.com/usadamasa/kubectl-localmesh/internal/k8s"
 	"github.com/usadamasa/kubectl-localmesh/internal/log"
 	"github.com/usadamasa/kubectl-localmesh/internal/loopback"
 	"gopkg.in/yaml.v3"
@@ -19,11 +18,6 @@ import (
 func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts bool) error {
 	// Logger初期化
 	logger := log.New(logLevel)
-	// Kubernetes client初期化
-	clientset, restConfig, err := k8s.NewClient()
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
 
 	tmpDir, err := os.MkdirTemp("", "kubectl-localmesh-")
 	if err != nil {
@@ -31,8 +25,8 @@ func Run(ctx context.Context, cfg *config.Config, logLevel string, updateHosts b
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Visitor の生成
-	visitor := NewRunVisitor(ctx, cfg, clientset, restConfig, logger)
+	// Visitor の生成（Kubernetes clientはサービスごとにlazy初期化）
+	visitor := NewRunVisitor(ctx, cfg, logger)
 
 	// Visitorパターンで各サービスを処理
 	for _, svcDef := range cfg.Services {

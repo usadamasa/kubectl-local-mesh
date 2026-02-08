@@ -1029,6 +1029,142 @@ listener_port: 80
 	}
 }
 
+// ========== Cluster関連テスト ==========
+
+func TestLoad_GlobalCluster(t *testing.T) {
+	content := `
+cluster: gke_myproject_asia-northeast1_staging
+services:
+  - kind: kubernetes
+    host: test.localhost
+    namespace: test
+    service: test-svc
+    port: 8080
+    protocol: http
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Cluster != "gke_myproject_asia-northeast1_staging" {
+		t.Errorf("expected cluster 'gke_myproject_asia-northeast1_staging', got '%s'", cfg.Cluster)
+	}
+}
+
+func TestLoad_PerServiceCluster(t *testing.T) {
+	content := `
+cluster: gke_myproject_asia-northeast1_staging
+services:
+  - kind: kubernetes
+    host: api.localhost
+    namespace: default
+    service: api-svc
+    protocol: http
+  - kind: kubernetes
+    host: admin.localhost
+    namespace: admin
+    service: admin-web
+    protocol: http
+    cluster: gke_myproject_asia-northeast1_prod
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// 1番目のサービスはcluster未指定
+	svc1, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService for first service")
+	}
+	if svc1.Cluster != "" {
+		t.Errorf("expected empty cluster for first service, got '%s'", svc1.Cluster)
+	}
+
+	// 2番目のサービスはcluster指定あり
+	svc2, ok := cfg.Services[1].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService for second service")
+	}
+	if svc2.Cluster != "gke_myproject_asia-northeast1_prod" {
+		t.Errorf("expected cluster 'gke_myproject_asia-northeast1_prod', got '%s'", svc2.Cluster)
+	}
+}
+
+func TestLoad_ClusterTrimming(t *testing.T) {
+	content := `
+cluster: "  gke_myproject_asia-northeast1_staging  "
+services:
+  - kind: kubernetes
+    host: test.localhost
+    namespace: test
+    service: test-svc
+    protocol: http
+    cluster: "  gke_myproject_asia-northeast1_prod  "
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Cluster != "gke_myproject_asia-northeast1_staging" {
+		t.Errorf("expected trimmed global cluster, got '%s'", cfg.Cluster)
+	}
+
+	svc, ok := cfg.Services[0].AsKubernetes()
+	if !ok {
+		t.Fatal("expected KubernetesService")
+	}
+	if svc.Cluster != "gke_myproject_asia-northeast1_prod" {
+		t.Errorf("expected trimmed service cluster, got '%s'", svc.Cluster)
+	}
+}
+
+func TestLoad_NoCluster(t *testing.T) {
+	// cluster未指定の場合はデフォルト値（空文字列）
+	content := `
+services:
+  - kind: kubernetes
+    host: test.localhost
+    namespace: test
+    service: test-svc
+    protocol: http
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Cluster != "" {
+		t.Errorf("expected empty cluster, got '%s'", cfg.Cluster)
+	}
+}
+
 // ========== ListenerPort関連テスト ==========
 
 func TestLoad_KubernetesService_WithListenerPort_GRPC(t *testing.T) {

@@ -12,6 +12,7 @@ func TestKubernetesServiceBuilder_Build_HTTPRoute(t *testing.T) {
 		"api.localhost", "http",
 		"default", "api", "http", 8080,
 		0, // OverwriteListenPort
+		"",
 	)
 
 	result := builder.Build("api_cluster", 10001, 80)
@@ -39,6 +40,7 @@ func TestKubernetesServiceBuilder_Build_WithOverwriteListenPort(t *testing.T) {
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
 		port.IndividualListenerPort(50051),
+		"",
 	)
 
 	result := builder.Build("grpc_cluster", 10001, 80)
@@ -75,6 +77,7 @@ func TestKubernetesServiceBuilder_Build_HTTP_WithOverwriteListenPort(t *testing.
 		"http.localhost", "http",
 		"default", "http-service", "http", 8080,
 		port.IndividualListenerPort(8080),
+		"",
 	)
 
 	result := builder.Build("http_cluster", 10001, 80)
@@ -105,6 +108,7 @@ func TestKubernetesServiceBuilder_Build_gRPC_WithOverwriteListenPort(t *testing.
 		"grpc.localhost", "grpc",
 		"default", "grpc-service", "grpc", 50051,
 		port.IndividualListenerPort(50051),
+		"",
 	)
 
 	result := builder.Build("grpc_cluster", 10001, 80)
@@ -129,6 +133,7 @@ func TestKubernetesServiceBuilder_GetHost(t *testing.T) {
 		"test.localhost", "http",
 		"default", "test", "http", 8080,
 		0,
+		"",
 	)
 
 	if builder.GetHost() != "test.localhost" {

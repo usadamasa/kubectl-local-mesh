@@ -11,7 +11,7 @@ func TestDumpVisitor_Creation(t *testing.T) {
 	// DumpVisitorの生成テスト
 	ctx := context.Background()
 
-	visitor := NewDumpVisitor(ctx, nil, nil)
+	visitor := NewDumpVisitor(ctx, "", nil)
 
 	if visitor == nil {
 		t.Fatal("expected visitor to be created")
@@ -26,7 +26,7 @@ func TestDumpVisitor_VisitTCP(t *testing.T) {
 	// DumpVisitorのVisitTCPテスト（モック不要）
 	ctx := context.Background()
 
-	visitor := NewDumpVisitor(ctx, nil, nil)
+	visitor := NewDumpVisitor(ctx, "", nil)
 	visitor.SetIndex(0)
 
 	svc := &config.TCPService{

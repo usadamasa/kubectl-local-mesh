@@ -1,0 +1,29 @@
+services:
+    - kind: kubernetes
+      host: users-api.localhost
+      protocol: grpc
+      namespace: users
+      service: users-api
+      port_name: grpc
+      resolved_remote_port: 9090
+      assigned_local_port: 10000
+      envoy_cluster_name: users_users_api_9090
+    - kind: kubernetes
+      host: admin.localhost
+      protocol: http
+      namespace: admin
+      service: admin-web
+      port_name: http
+      cluster: gke_myproject_asia-northeast1_prod
+      resolved_remote_port: 8080
+      assigned_local_port: 10001
+      envoy_cluster_name: admin_admin_web_8080
+    - kind: kubernetes
+      host: api.localhost
+      protocol: http
+      namespace: default
+      service: api
+      port_name: http
+      resolved_remote_port: 8080
+      assigned_local_port: 10002
+      envoy_cluster_name: default_api_8080
